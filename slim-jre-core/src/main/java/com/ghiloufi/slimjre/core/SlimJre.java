@@ -6,6 +6,9 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,35 +80,53 @@ public class SlimJre {
       log.info("Configuration: {}", config);
     }
 
-    // Step 1: Analyze JARs with jdeps
-    log.debug("Step 1: Analyzing JARs with jdeps...");
-    Set<String> jdepsModules = jdepsAnalyzer.analyzeRequiredModules(config.jars());
-    log.info("jdeps detected {} module(s): {}", jdepsModules.size(), formatModules(jdepsModules));
+    // Run all analyzers in parallel using virtual threads
+    log.debug("Running all analyzers in parallel...");
+    Set<String> jdepsModules;
+    Set<String> serviceModules;
+    Set<String> reflectionModules;
 
-    // Step 2: Scan for service loader dependencies
-    Set<String> serviceModules = Set.of();
-    if (config.scanServiceLoaders()) {
-      log.debug("Step 2: Scanning for service loader dependencies...");
-      serviceModules = serviceLoaderScanner.scanForServiceModules(config.jars());
-      if (!serviceModules.isEmpty()) {
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      // Submit all analysis tasks in parallel
+      Future<Set<String>> jdepsFuture =
+          executor.submit(() -> jdepsAnalyzer.analyzeRequiredModules(config.jars()));
+
+      Future<Set<String>> serviceFuture =
+          config.scanServiceLoaders()
+              ? executor.submit(
+                  () -> serviceLoaderScanner.scanForServiceModulesParallel(config.jars()))
+              : null;
+
+      Future<Set<String>> reflectionFuture =
+          executor.submit(() -> reflectionScanner.scanJarsParallel(config.jars()));
+
+      // Collect results
+      try {
+        jdepsModules = jdepsFuture.get();
         log.info(
-            "Service loaders require {} module(s): {}",
-            serviceModules.size(),
-            formatModules(serviceModules));
+            "jdeps detected {} module(s): {}", jdepsModules.size(), formatModules(jdepsModules));
+
+        serviceModules = serviceFuture != null ? serviceFuture.get() : Set.of();
+        if (!serviceModules.isEmpty()) {
+          log.info(
+              "Service loaders require {} module(s): {}",
+              serviceModules.size(),
+              formatModules(serviceModules));
+        }
+
+        reflectionModules = reflectionFuture.get();
+        if (!reflectionModules.isEmpty()) {
+          log.info(
+              "Reflection patterns require {} module(s): {}",
+              reflectionModules.size(),
+              formatModules(reflectionModules));
+        }
+      } catch (Exception e) {
+        throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
       }
     }
 
-    // Step 3: Scan for reflection-based class loading
-    log.debug("Step 3: Scanning for reflection-based class loading...");
-    Set<String> reflectionModules = reflectionScanner.scanJars(config.jars());
-    if (!reflectionModules.isEmpty()) {
-      log.info(
-          "Reflection patterns require {} module(s): {}",
-          reflectionModules.size(),
-          formatModules(reflectionModules));
-    }
-
-    // Step 4: Combine all modules
+    // Combine all modules
     Set<String> allModules = new TreeSet<>();
     allModules.addAll(jdepsModules);
     allModules.addAll(serviceModules);
@@ -177,19 +198,34 @@ public class SlimJre {
    * @return analysis result with module breakdown
    */
   public AnalysisResult analyzeOnly(List<Path> jars) {
-    log.info("Analyzing {} JAR(s)...", jars.size());
+    log.info("Analyzing {} JAR(s) in parallel...", jars.size());
 
-    // Analyze with jdeps
-    Set<String> jdepsModules = jdepsAnalyzer.analyzeRequiredModules(jars);
+    Set<String> jdepsModules;
+    Set<String> serviceModules;
+    Set<String> reflectionModules;
+    Map<Path, Set<String>> perJarModules;
 
-    // Scan for service loaders
-    Set<String> serviceModules = serviceLoaderScanner.scanForServiceModules(jars);
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      // Submit all analysis tasks in parallel
+      Future<Set<String>> jdepsFuture =
+          executor.submit(() -> jdepsAnalyzer.analyzeRequiredModules(jars));
+      Future<Set<String>> serviceFuture =
+          executor.submit(() -> serviceLoaderScanner.scanForServiceModulesParallel(jars));
+      Future<Set<String>> reflectionFuture =
+          executor.submit(() -> reflectionScanner.scanJarsParallel(jars));
+      Future<Map<Path, Set<String>>> perJarFuture =
+          executor.submit(() -> jdepsAnalyzer.analyzeRequiredModulesPerJar(jars));
 
-    // Scan for reflection-based class loading
-    Set<String> reflectionModules = reflectionScanner.scanJars(jars);
-
-    // Per-JAR breakdown
-    Map<Path, Set<String>> perJarModules = jdepsAnalyzer.analyzeRequiredModulesPerJar(jars);
+      // Collect results
+      try {
+        jdepsModules = jdepsFuture.get();
+        serviceModules = serviceFuture.get();
+        reflectionModules = reflectionFuture.get();
+        perJarModules = perJarFuture.get();
+      } catch (Exception e) {
+        throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
+      }
+    }
 
     // Combine all modules
     Set<String> allModules = new TreeSet<>();

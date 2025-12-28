@@ -113,6 +113,41 @@ class ServiceLoaderScannerTest {
     assertThat(modules).contains("java.naming");
   }
 
+  @Test
+  void shouldScanMultipleJarsInParallel() throws IOException {
+    // Create multiple JARs with different services
+    Path jar1 = createJarWithService(tempDir, "jar1.jar", "java.sql.Driver");
+    Path jar2 = createJarWithService(tempDir, "jar2.jar", "javax.xml.parsers.SAXParserFactory");
+    Path jar3 = createJarWithService(tempDir, "jar3.jar", "javax.script.ScriptEngineFactory");
+    Path jar4 = createJarWithService(tempDir, "jar4.jar", "java.util.logging.Handler");
+
+    Set<String> modules = scanner.scanForServiceModulesParallel(List.of(jar1, jar2, jar3, jar4));
+
+    assertThat(modules).contains("java.sql", "java.xml", "java.scripting", "java.logging");
+  }
+
+  @Test
+  void shouldHandleEmptyListInParallelScan() {
+    Set<String> modules = scanner.scanForServiceModulesParallel(List.of());
+    assertThat(modules).isEmpty();
+  }
+
+  @Test
+  void shouldHandleNullListInParallelScan() {
+    Set<String> modules = scanner.scanForServiceModulesParallel(null);
+    assertThat(modules).isEmpty();
+  }
+
+  @Test
+  void shouldFallbackToSequentialForSmallJarCount() throws IOException {
+    // With 2 or fewer JARs, should use sequential scan
+    Path jar1 = createJarWithService(tempDir, "single.jar", "java.sql.Driver");
+
+    Set<String> modules = scanner.scanForServiceModulesParallel(List.of(jar1));
+
+    assertThat(modules).contains("java.sql");
+  }
+
   /** Creates a JAR file with the specified service declarations. */
   private Path createJarWithService(Path dir, String jarName, String... serviceInterfaces)
       throws IOException {

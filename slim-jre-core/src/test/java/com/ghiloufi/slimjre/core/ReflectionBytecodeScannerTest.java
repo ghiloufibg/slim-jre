@@ -288,6 +288,48 @@ class ReflectionBytecodeScannerTest {
     return cw.toByteArray();
   }
 
+  @Test
+  void shouldScanMultipleJarsInParallel() throws IOException {
+    // Create multiple JARs with different reflection patterns
+    byte[] class1 = createClassWithClassForName("java.sql.Driver");
+    byte[] class2 = createClassWithClassForName("java.rmi.Remote");
+    byte[] class3 = createClassWithClassForName("javax.xml.parsers.SAXParser");
+    byte[] class4 = createClassWithClassForName("java.net.http.HttpClient");
+
+    Path jar1 = createJarWithClass(tempDir, "jar1.jar", "com/example/Class1", class1);
+    Path jar2 = createJarWithClass(tempDir, "jar2.jar", "com/example/Class2", class2);
+    Path jar3 = createJarWithClass(tempDir, "jar3.jar", "com/example/Class3", class3);
+    Path jar4 = createJarWithClass(tempDir, "jar4.jar", "com/example/Class4", class4);
+
+    // Use parallel scanning
+    Set<String> modules = scanner.scanJarsParallel(List.of(jar1, jar2, jar3, jar4));
+
+    assertThat(modules).contains("java.sql", "java.rmi", "java.xml", "java.net.http");
+  }
+
+  @Test
+  void shouldHandleEmptyListInParallelScan() {
+    Set<String> modules = scanner.scanJarsParallel(List.of());
+    assertThat(modules).isEmpty();
+  }
+
+  @Test
+  void shouldHandleNullListInParallelScan() {
+    Set<String> modules = scanner.scanJarsParallel(null);
+    assertThat(modules).isEmpty();
+  }
+
+  @Test
+  void shouldFallbackToSequentialForSmallJarCount() throws IOException {
+    // With 2 or fewer JARs, should use sequential scan
+    byte[] class1 = createClassWithClassForName("java.sql.Driver");
+    Path jar1 = createJarWithClass(tempDir, "single.jar", "com/example/Class1", class1);
+
+    Set<String> modules = scanner.scanJarsParallel(List.of(jar1));
+
+    assertThat(modules).contains("java.sql");
+  }
+
   /** Creates a JAR file containing a single class. */
   private Path createJarWithClass(Path dir, String jarName, String className, byte[] classBytes)
       throws IOException {

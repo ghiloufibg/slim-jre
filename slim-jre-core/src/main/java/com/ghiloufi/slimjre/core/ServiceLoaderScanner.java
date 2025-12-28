@@ -3,6 +3,10 @@ package com.ghiloufi.slimjre.core;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import org.slf4j.Logger;
@@ -239,5 +243,65 @@ public class ServiceLoaderScanner {
       services.addAll(scanJarForServices(jar));
     }
     return services;
+  }
+
+  /**
+   * Scans JARs for service loader declarations in parallel using virtual threads. This method
+   * leverages Java 21's virtual threads for efficient parallel I/O operations.
+   *
+   * @param jars JARs to scan
+   * @return set of additional module names required by service loaders
+   */
+  public Set<String> scanForServiceModulesParallel(List<Path> jars) {
+    if (jars == null || jars.isEmpty()) {
+      return Set.of();
+    }
+
+    // For small numbers of JARs, sequential is fine
+    if (jars.size() <= 2) {
+      return scanForServiceModules(jars);
+    }
+
+    Set<String> modules = ConcurrentHashMap.newKeySet();
+    Set<String> unknownServices = ConcurrentHashMap.newKeySet();
+
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      // Scan all JARs in parallel
+      List<Future<Set<String>>> futures =
+          jars.stream().map(jar -> executor.submit(() -> scanJarForServices(jar))).toList();
+
+      // Collect all service interfaces
+      Set<String> allServices = ConcurrentHashMap.newKeySet();
+      for (Future<Set<String>> future : futures) {
+        try {
+          allServices.addAll(future.get());
+        } catch (Exception e) {
+          log.warn("Failed to get service scan result: {}", e.getMessage());
+        }
+      }
+
+      // Map services to modules (this is fast, no need to parallelize)
+      for (String service : allServices) {
+        String module = SERVICE_TO_MODULE.get(service);
+        if (module != null) {
+          modules.add(module);
+          log.debug("Service {} requires module {}", service, module);
+        } else {
+          String moduleFromPackage = findModuleByPackage(service);
+          if (moduleFromPackage != null) {
+            modules.add(moduleFromPackage);
+            log.debug("Service {} (by package) requires module {}", service, moduleFromPackage);
+          } else {
+            unknownServices.add(service);
+          }
+        }
+      }
+    }
+
+    if (!unknownServices.isEmpty()) {
+      log.debug("Unknown service interfaces (may be application-defined): {}", unknownServices);
+    }
+
+    return new TreeSet<>(modules);
   }
 }

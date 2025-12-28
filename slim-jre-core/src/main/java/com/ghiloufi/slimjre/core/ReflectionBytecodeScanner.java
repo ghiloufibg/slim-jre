@@ -13,11 +13,16 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Pattern;
@@ -154,6 +159,41 @@ public class ReflectionBytecodeScanner {
       allModules.addAll(scanJar(jar));
     }
     return allModules;
+  }
+
+  /**
+   * Scans multiple JARs in parallel using virtual threads and returns combined required modules.
+   * This method leverages Java 21's virtual threads for efficient parallel I/O operations.
+   *
+   * @param jars list of JAR paths to scan
+   * @return set of JDK module names required by reflection patterns across all JARs
+   */
+  public Set<String> scanJarsParallel(List<Path> jars) {
+    if (jars == null || jars.isEmpty()) {
+      return Set.of();
+    }
+
+    // For small numbers of JARs, sequential is fine
+    if (jars.size() <= 2) {
+      return scanJars(jars);
+    }
+
+    Set<String> allModules = ConcurrentHashMap.newKeySet();
+
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<Set<String>>> futures =
+          jars.stream().map(jar -> executor.submit(() -> scanJar(jar))).toList();
+
+      for (Future<Set<String>> future : futures) {
+        try {
+          allModules.addAll(future.get());
+        } catch (Exception e) {
+          log.warn("Failed to get scan result: {}", e.getMessage());
+        }
+      }
+    }
+
+    return new TreeSet<>(allModules);
   }
 
   /**
