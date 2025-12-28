@@ -173,11 +173,6 @@ public class ReflectionBytecodeScanner {
       return Set.of();
     }
 
-    // For small numbers of JARs, sequential is fine
-    if (jars.size() <= 2) {
-      return scanJars(jars);
-    }
-
     Set<String> allModules = ConcurrentHashMap.newKeySet();
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

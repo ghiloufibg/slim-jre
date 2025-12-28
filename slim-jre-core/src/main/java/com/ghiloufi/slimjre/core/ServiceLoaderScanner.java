@@ -257,11 +257,6 @@ public class ServiceLoaderScanner {
       return Set.of();
     }
 
-    // For small numbers of JARs, sequential is fine
-    if (jars.size() <= 2) {
-      return scanForServiceModules(jars);
-    }
-
     Set<String> modules = ConcurrentHashMap.newKeySet();
     Set<String> unknownServices = ConcurrentHashMap.newKeySet();
 

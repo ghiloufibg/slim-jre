@@ -139,8 +139,7 @@ class ServiceLoaderScannerTest {
   }
 
   @Test
-  void shouldFallbackToSequentialForSmallJarCount() throws IOException {
-    // With 2 or fewer JARs, should use sequential scan
+  void shouldHandleSingleJarInParallelScan() throws IOException {
     Path jar1 = createJarWithService(tempDir, "single.jar", "java.sql.Driver");
 
     Set<String> modules = scanner.scanForServiceModulesParallel(List.of(jar1));

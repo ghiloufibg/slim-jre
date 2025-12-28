@@ -320,8 +320,7 @@ class ReflectionBytecodeScannerTest {
   }
 
   @Test
-  void shouldFallbackToSequentialForSmallJarCount() throws IOException {
-    // With 2 or fewer JARs, should use sequential scan
+  void shouldHandleSingleJarInParallelScan() throws IOException {
     byte[] class1 = createClassWithClassForName("java.sql.Driver");
     Path jar1 = createJarWithClass(tempDir, "single.jar", "com/example/Class1", class1);
 
