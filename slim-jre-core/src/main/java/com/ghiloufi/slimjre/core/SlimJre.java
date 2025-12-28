@@ -32,6 +32,7 @@ public class SlimJre {
 
   private final JDepsAnalyzer jdepsAnalyzer;
   private final ServiceLoaderScanner serviceLoaderScanner;
+  private final ReflectionBytecodeScanner reflectionScanner;
   private final ModuleResolver moduleResolver;
   private final JLinkExecutor jlinkExecutor;
 
@@ -39,6 +40,7 @@ public class SlimJre {
   public SlimJre() {
     this.jdepsAnalyzer = new JDepsAnalyzer();
     this.serviceLoaderScanner = new ServiceLoaderScanner();
+    this.reflectionScanner = new ReflectionBytecodeScanner();
     this.moduleResolver = new ModuleResolver();
     this.jlinkExecutor = new JLinkExecutor();
   }
@@ -47,10 +49,12 @@ public class SlimJre {
   public SlimJre(
       JDepsAnalyzer jdepsAnalyzer,
       ServiceLoaderScanner serviceLoaderScanner,
+      ReflectionBytecodeScanner reflectionScanner,
       ModuleResolver moduleResolver,
       JLinkExecutor jlinkExecutor) {
     this.jdepsAnalyzer = Objects.requireNonNull(jdepsAnalyzer);
     this.serviceLoaderScanner = Objects.requireNonNull(serviceLoaderScanner);
+    this.reflectionScanner = Objects.requireNonNull(reflectionScanner);
     this.moduleResolver = Objects.requireNonNull(moduleResolver);
     this.jlinkExecutor = Objects.requireNonNull(jlinkExecutor);
   }
@@ -91,10 +95,21 @@ public class SlimJre {
       }
     }
 
-    // Step 3: Combine all modules
+    // Step 3: Scan for reflection-based class loading
+    log.debug("Step 3: Scanning for reflection-based class loading...");
+    Set<String> reflectionModules = reflectionScanner.scanJars(config.jars());
+    if (!reflectionModules.isEmpty()) {
+      log.info(
+          "Reflection patterns require {} module(s): {}",
+          reflectionModules.size(),
+          formatModules(reflectionModules));
+    }
+
+    // Step 4: Combine all modules
     Set<String> allModules = new TreeSet<>();
     allModules.addAll(jdepsModules);
     allModules.addAll(serviceModules);
+    allModules.addAll(reflectionModules);
     allModules.addAll(config.additionalModules());
 
     // Remove excluded modules
@@ -102,13 +117,13 @@ public class SlimJre {
 
     log.debug("Combined modules before resolution: {}", allModules);
 
-    // Step 4: Resolve transitive dependencies
-    log.debug("Step 3: Resolving transitive module dependencies...");
+    // Step 5: Resolve transitive dependencies
+    log.debug("Step 5: Resolving transitive module dependencies...");
     Set<String> resolvedModules = moduleResolver.resolveWithTransitive(allModules);
     log.info("Resolved {} total module(s) (including transitive)", resolvedModules.size());
 
-    // Step 5: Create the JRE with jlink
-    log.debug("Step 4: Creating custom JRE with jlink...");
+    // Step 6: Create the JRE with jlink
+    log.debug("Step 6: Creating custom JRE with jlink...");
     JLinkOptions jlinkOptions =
         JLinkOptions.builder()
             .modules(resolvedModules)
@@ -170,6 +185,9 @@ public class SlimJre {
     // Scan for service loaders
     Set<String> serviceModules = serviceLoaderScanner.scanForServiceModules(jars);
 
+    // Scan for reflection-based class loading
+    Set<String> reflectionModules = reflectionScanner.scanJars(jars);
+
     // Per-JAR breakdown
     Map<Path, Set<String>> perJarModules = jdepsAnalyzer.analyzeRequiredModulesPerJar(jars);
 
@@ -177,8 +195,10 @@ public class SlimJre {
     Set<String> allModules = new TreeSet<>();
     allModules.addAll(jdepsModules);
     allModules.addAll(serviceModules);
+    allModules.addAll(reflectionModules);
 
-    return new AnalysisResult(jdepsModules, serviceModules, allModules, perJarModules);
+    return new AnalysisResult(
+        jdepsModules, serviceModules, reflectionModules, allModules, perJarModules);
   }
 
   /** Creates a new fluent builder for SlimJre operations. */

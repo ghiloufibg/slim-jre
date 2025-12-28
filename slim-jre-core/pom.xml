@@ -23,6 +23,12 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
+        <!-- ASM for bytecode analysis -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

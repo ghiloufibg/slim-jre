@@ -10,18 +10,31 @@ import java.util.stream.Collectors;
  *
  * @param requiredModules Modules detected by jdeps analysis
  * @param serviceLoaderModules Modules required by service loader declarations
+ * @param reflectionModules Modules required by Class.forName() reflection patterns
  * @param allModules Combined set of all required modules
  * @param perJarModules Breakdown of modules required by each JAR
  */
 public record AnalysisResult(
     Set<String> requiredModules,
     Set<String> serviceLoaderModules,
+    Set<String> reflectionModules,
     Set<String> allModules,
     Map<Path, Set<String>> perJarModules) {
+
+  /** Creates an AnalysisResult without reflection modules (backward compatibility). */
+  public AnalysisResult(
+      Set<String> requiredModules,
+      Set<String> serviceLoaderModules,
+      Set<String> allModules,
+      Map<Path, Set<String>> perJarModules) {
+    this(requiredModules, serviceLoaderModules, Set.of(), allModules, perJarModules);
+  }
+
   public AnalysisResult {
     // Defensive copies
     requiredModules = Set.copyOf(requiredModules);
     serviceLoaderModules = Set.copyOf(serviceLoaderModules);
+    reflectionModules = Set.copyOf(reflectionModules);
     allModules = Set.copyOf(allModules);
     perJarModules = Map.copyOf(perJarModules);
   }
@@ -34,6 +47,7 @@ public record AnalysisResult(
     sb.append("  Service loader modules: ")
         .append(formatModules(serviceLoaderModules))
         .append("\n");
+    sb.append("  Reflection modules: ").append(formatModules(reflectionModules)).append("\n");
     sb.append("  Total modules: ").append(allModules.size()).append("\n");
 
     if (!perJarModules.isEmpty()) {
