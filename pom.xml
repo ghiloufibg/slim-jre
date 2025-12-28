@@ -25,6 +25,7 @@
         <module>slim-jre-core</module>
         <module>slim-jre-cli</module>
         <module>slim-jre-maven-plugin</module>
+        <module>slim-jre-gui</module>
         <module>slim-jre-examples</module>
     </modules>
 
