@@ -19,6 +19,7 @@ public class ActionPanel extends JPanel {
 
   private final JButton analyzeButton;
   private final JButton createJreButton;
+  private final JButton exportButton;
   private final JProgressBar progressBar;
   private final JLabel statusLabel;
 
@@ -41,6 +42,12 @@ public class ActionPanel extends JPanel {
     createJreButton.setFont(createJreButton.getFont().deriveFont(Font.BOLD));
     createJreButton.setToolTipText("Create a minimal JRE with detected modules (Ctrl+Enter)");
     buttonPanel.add(createJreButton);
+
+    exportButton = new JButton("Export Report");
+    exportButton.setPreferredSize(new Dimension(120, 32));
+    exportButton.setToolTipText("Export analysis results to file (Ctrl+E)");
+    exportButton.setEnabled(false);
+    buttonPanel.add(exportButton);
 
     add(buttonPanel, BorderLayout.NORTH);
 
@@ -94,6 +101,21 @@ public class ActionPanel extends JPanel {
                 }
               }
             });
+
+    // Ctrl+E for Export Report
+    getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+        .put(KeyStroke.getKeyStroke("control E"), "export");
+    getActionMap()
+        .put(
+            "export",
+            new AbstractAction() {
+              @Override
+              public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (exportButton.isEnabled()) {
+                  exportButton.doClick();
+                }
+              }
+            });
   }
 
   /**
@@ -123,6 +145,19 @@ public class ActionPanel extends JPanel {
   }
 
   /**
+   * Sets the action listener for the Export Report button.
+   *
+   * @param listener the action listener
+   */
+  public void setExportAction(ActionListener listener) {
+    // Remove existing listeners
+    for (ActionListener al : exportButton.getActionListeners()) {
+      exportButton.removeActionListener(al);
+    }
+    exportButton.addActionListener(listener);
+  }
+
+  /**
    * Enables or disables the Analyze button.
    *
    * @param enabled true to enable
@@ -138,6 +173,15 @@ public class ActionPanel extends JPanel {
    */
   public void setCreateJreEnabled(boolean enabled) {
     createJreButton.setEnabled(enabled);
+  }
+
+  /**
+   * Enables or disables the Export Report button.
+   *
+   * @param enabled true to enable
+   */
+  public void setExportEnabled(boolean enabled) {
+    exportButton.setEnabled(enabled);
   }
 
   /**

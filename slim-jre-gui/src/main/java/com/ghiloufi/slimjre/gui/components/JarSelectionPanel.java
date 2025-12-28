@@ -279,6 +279,11 @@ public class JarSelectionPanel extends JPanel {
     fireChangeEvent();
   }
 
+  /** Clears all JAR entries from the list (alias for clearAll). */
+  public void clearJars() {
+    clearAll();
+  }
+
   /**
    * Returns the list of selected JAR paths.
    *

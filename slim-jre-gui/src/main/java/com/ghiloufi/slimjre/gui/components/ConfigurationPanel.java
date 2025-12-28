@@ -1,6 +1,7 @@
 package com.ghiloufi.slimjre.gui.components;
 
 import com.ghiloufi.slimjre.config.SlimJreConfig;
+import com.ghiloufi.slimjre.gui.model.GuiPreferences;
 import java.awt.*;
 import java.io.File;
 import java.nio.file.Path;
@@ -293,5 +294,171 @@ public class ConfigurationPanel extends JPanel {
    */
   public Path getOutputPath() {
     return Path.of(outputDirectoryField.getText().trim());
+  }
+
+  // ===== Getter methods for configuration save/load =====
+
+  /**
+   * Returns the output directory.
+   *
+   * @return output directory path
+   */
+  public Path getOutputDirectory() {
+    return Path.of(outputDirectoryField.getText().trim());
+  }
+
+  /**
+   * Returns whether strip debug is enabled.
+   *
+   * @return true if enabled
+   */
+  public boolean isStripDebug() {
+    return stripDebugCheckbox.isSelected();
+  }
+
+  /**
+   * Returns whether verbose output is enabled.
+   *
+   * @return true if enabled
+   */
+  public boolean isVerbose() {
+    return verboseCheckbox.isSelected();
+  }
+
+  /**
+   * Returns the compression level string.
+   *
+   * @return compression level (e.g., "zip-6")
+   */
+  public String getCompression() {
+    return getSelectedCompression();
+  }
+
+  /**
+   * Returns additional modules as comma-separated string.
+   *
+   * @return additional modules string
+   */
+  public String getAdditionalModules() {
+    return additionalModulesField.getText();
+  }
+
+  /**
+   * Returns exclude modules as comma-separated string.
+   *
+   * @return exclude modules string
+   */
+  public String getExcludeModules() {
+    return excludeModulesField.getText();
+  }
+
+  // ===== Setter methods for configuration load =====
+
+  /**
+   * Sets the output directory.
+   *
+   * @param path output directory path
+   */
+  public void setOutputDirectory(Path path) {
+    outputDirectoryField.setText(path.toString());
+  }
+
+  /**
+   * Sets whether strip debug is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setStripDebug(boolean enabled) {
+    stripDebugCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets whether service loader scanning is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setScanServiceLoaders(boolean enabled) {
+    scanServiceLoadersCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets whether GraalVM metadata scanning is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setScanGraalVmMetadata(boolean enabled) {
+    scanGraalVmMetadataCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets whether verbose output is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setVerbose(boolean enabled) {
+    verboseCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets the compression level.
+   *
+   * @param compression compression level (e.g., "zip-6")
+   */
+  public void setCompression(String compression) {
+    for (int i = 0; i < compressionCombo.getItemCount(); i++) {
+      String item = compressionCombo.getItemAt(i);
+      if (item != null && item.startsWith(compression)) {
+        compressionCombo.setSelectedIndex(i);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Sets additional modules.
+   *
+   * @param modules comma-separated module list
+   */
+  public void setAdditionalModules(String modules) {
+    additionalModulesField.setText(modules != null ? modules : "");
+  }
+
+  /**
+   * Sets exclude modules.
+   *
+   * @param modules comma-separated module list
+   */
+  public void setExcludeModules(String modules) {
+    excludeModulesField.setText(modules != null ? modules : "");
+  }
+
+  // ===== Preferences integration =====
+
+  /**
+   * Applies preferences to the panel.
+   *
+   * @param prefs preferences to apply
+   */
+  public void applyPreferences(GuiPreferences prefs) {
+    setOutputDirectory(prefs.getOutputDirectory());
+    setStripDebug(prefs.isStripDebug());
+    setScanServiceLoaders(prefs.isScanServiceLoaders());
+    setScanGraalVmMetadata(prefs.isScanGraalVmMetadata());
+    setVerbose(prefs.isVerbose());
+    setCompression(prefs.getCompression());
+  }
+
+  /**
+   * Saves current panel state to preferences.
+   *
+   * @param prefs preferences to update
+   */
+  public void saveToPreferences(GuiPreferences prefs) {
+    prefs.setOutputDirectory(getOutputDirectory());
+    prefs.setStripDebug(isStripDebug());
+    prefs.setScanServiceLoaders(isScanServiceLoaders());
+    prefs.setScanGraalVmMetadata(isScanGraalVmMetadata());
+    prefs.setVerbose(isVerbose());
+    prefs.setCompression(getCompression());
   }
 }
