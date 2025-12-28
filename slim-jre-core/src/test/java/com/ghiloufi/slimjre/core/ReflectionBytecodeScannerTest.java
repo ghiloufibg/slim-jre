@@ -329,6 +329,186 @@ class ReflectionBytecodeScannerTest {
     assertThat(modules).contains("java.sql");
   }
 
+  @Test
+  void shouldDetectClassLoaderLoadClass() throws IOException {
+    byte[] classBytes = createClassWithClassLoaderLoadClass("java.sql.Driver");
+
+    Set<String> reflectedClasses = scanner.scanClass(new ByteArrayInputStream(classBytes));
+
+    assertThat(reflectedClasses).contains("java.sql.Driver");
+  }
+
+  @Test
+  void shouldDetectClassLoaderLoadClassWithResolve() throws IOException {
+    byte[] classBytes = createClassWithClassLoaderLoadClassResolve("javax.naming.InitialContext");
+
+    Set<String> reflectedClasses = scanner.scanClass(new ByteArrayInputStream(classBytes));
+
+    assertThat(reflectedClasses).contains("javax.naming.InitialContext");
+  }
+
+  @Test
+  void shouldDetectMethodHandlesFindClass() throws IOException {
+    byte[] classBytes = createClassWithMethodHandlesFindClass("java.util.logging.Logger");
+
+    Set<String> reflectedClasses = scanner.scanClass(new ByteArrayInputStream(classBytes));
+
+    assertThat(reflectedClasses).contains("java.util.logging.Logger");
+  }
+
+  @Test
+  void shouldMapClassLoaderLoadClassToModules() throws IOException {
+    byte[] classBytes = createClassWithClassLoaderLoadClass("java.sql.Connection");
+    Path jar = createJarWithClass(tempDir, "loader.jar", "com/example/LoaderUser", classBytes);
+
+    Set<String> modules = scanner.scanJar(jar);
+
+    assertThat(modules).contains("java.sql");
+  }
+
+  @Test
+  void shouldMapMethodHandlesFindClassToModules() throws IOException {
+    byte[] classBytes = createClassWithMethodHandlesFindClass("java.util.logging.Logger");
+    Path jar = createJarWithClass(tempDir, "handles.jar", "com/example/HandlesUser", classBytes);
+
+    Set<String> modules = scanner.scanJar(jar);
+
+    assertThat(modules).contains("java.logging");
+  }
+
+  /** Creates bytecode that calls ClassLoader.loadClass(String). */
+  private byte[] createClassWithClassLoaderLoadClass(String className) {
+    ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+    cw.visit(
+        Opcodes.V21,
+        Opcodes.ACC_PUBLIC,
+        "com/example/ClassLoaderTestClass",
+        null,
+        "java/lang/Object",
+        null);
+
+    MethodVisitor mv =
+        cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+            "loadClass",
+            "()Ljava/lang/Class;",
+            null,
+            new String[] {"java/lang/ClassNotFoundException"});
+    mv.visitCode();
+
+    // Get context class loader: Thread.currentThread().getContextClassLoader()
+    mv.visitMethodInsn(
+        Opcodes.INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
+    mv.visitMethodInsn(
+        Opcodes.INVOKEVIRTUAL,
+        "java/lang/Thread",
+        "getContextClassLoader",
+        "()Ljava/lang/ClassLoader;",
+        false);
+
+    // Load the class name and call loadClass(String)
+    mv.visitLdcInsn(className);
+    mv.visitMethodInsn(
+        Opcodes.INVOKEVIRTUAL,
+        "java/lang/ClassLoader",
+        "loadClass",
+        "(Ljava/lang/String;)Ljava/lang/Class;",
+        false);
+    mv.visitInsn(Opcodes.ARETURN);
+
+    mv.visitMaxs(2, 0);
+    mv.visitEnd();
+
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
+  /** Creates bytecode that calls ClassLoader.loadClass(String, boolean). */
+  private byte[] createClassWithClassLoaderLoadClassResolve(String className) {
+    ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+    cw.visit(
+        Opcodes.V21,
+        Opcodes.ACC_PUBLIC,
+        "com/example/ClassLoaderResolveTestClass",
+        null,
+        "java/lang/Object",
+        null);
+
+    // Need to create a subclass to call protected loadClass(String, boolean)
+    // For simplicity, we'll test the pattern recognition with a mock owner
+    MethodVisitor mv =
+        cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+            "loadClass",
+            "(Ljava/lang/ClassLoader;)Ljava/lang/Class;",
+            null,
+            new String[] {"java/lang/ClassNotFoundException"});
+    mv.visitCode();
+
+    // Load class loader, class name, and boolean
+    mv.visitVarInsn(Opcodes.ALOAD, 0);
+    mv.visitLdcInsn(className);
+    mv.visitInsn(Opcodes.ICONST_1);
+    mv.visitMethodInsn(
+        Opcodes.INVOKEVIRTUAL,
+        "java/lang/ClassLoader",
+        "loadClass",
+        "(Ljava/lang/String;Z)Ljava/lang/Class;",
+        false);
+    mv.visitInsn(Opcodes.ARETURN);
+
+    mv.visitMaxs(3, 1);
+    mv.visitEnd();
+
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
+  /** Creates bytecode that calls MethodHandles.Lookup.findClass(String). */
+  private byte[] createClassWithMethodHandlesFindClass(String className) {
+    ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+    cw.visit(
+        Opcodes.V21,
+        Opcodes.ACC_PUBLIC,
+        "com/example/MethodHandlesTestClass",
+        null,
+        "java/lang/Object",
+        null);
+
+    MethodVisitor mv =
+        cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+            "findClass",
+            "()Ljava/lang/Class;",
+            null,
+            new String[] {"java/lang/ClassNotFoundException", "java/lang/IllegalAccessException"});
+    mv.visitCode();
+
+    // Get lookup: MethodHandles.lookup()
+    mv.visitMethodInsn(
+        Opcodes.INVOKESTATIC,
+        "java/lang/invoke/MethodHandles",
+        "lookup",
+        "()Ljava/lang/invoke/MethodHandles$Lookup;",
+        false);
+
+    // Load the class name and call findClass(String)
+    mv.visitLdcInsn(className);
+    mv.visitMethodInsn(
+        Opcodes.INVOKEVIRTUAL,
+        "java/lang/invoke/MethodHandles$Lookup",
+        "findClass",
+        "(Ljava/lang/String;)Ljava/lang/Class;",
+        false);
+    mv.visitInsn(Opcodes.ARETURN);
+
+    mv.visitMaxs(2, 0);
+    mv.visitEnd();
+
+    cw.visitEnd();
+    return cw.toByteArray();
+  }
+
   /** Creates a JAR file containing a single class. */
   private Path createJarWithClass(Path dir, String jarName, String className, byte[] classBytes)
       throws IOException {

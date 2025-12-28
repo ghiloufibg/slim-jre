@@ -34,18 +34,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Scans bytecode to detect reflection-based class loading that jdeps cannot detect. Specifically
- * targets Class.forName() calls with string literal arguments that reference JDK classes.
+ * Scans bytecode to detect reflection-based class loading that jdeps cannot detect. Targets dynamic
+ * class loading patterns with string literal arguments that reference JDK classes.
  *
  * <p>This scanner complements jdeps analysis by catching cases like:
  *
  * <pre>
+ *   // Class.forName patterns
  *   Class.forName("java.sql.Driver")
- *   Class.forName("javax.xml.parsers.SAXParserFactory")
+ *   Class.forName("javax.xml.parsers.SAXParserFactory", true, classLoader)
+ *
+ *   // ClassLoader.loadClass patterns
+ *   classLoader.loadClass("java.sql.Driver")
+ *   Thread.currentThread().getContextClassLoader().loadClass("java.naming.Context")
+ *
+ *   // MethodHandles.Lookup.findClass patterns
+ *   MethodHandles.lookup().findClass("java.sql.Driver")
  * </pre>
  *
- * <p>Only JDK classes (java.*, javax.*, jdk.*, sun.*) are detected and mapped to their containing
- * modules.
+ * <p>Only JDK classes (java.*, javax.*, jdk.*, sun.*, com.sun.*) are detected and mapped to their
+ * containing modules.
  */
 public class ReflectionBytecodeScanner {
 
@@ -62,6 +70,21 @@ public class ReflectionBytecodeScanner {
   private static final String CLASS_FOR_NAME_DESC = "(Ljava/lang/String;)Ljava/lang/Class;";
   private static final String CLASS_FOR_NAME_INIT_DESC =
       "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;";
+
+  /** Pattern for ClassLoader.loadClass method */
+  private static final String CLASS_LOADER_OWNER = "java/lang/ClassLoader";
+
+  private static final String CLASS_LOADER_LOAD_CLASS_NAME = "loadClass";
+  private static final String CLASS_LOADER_LOAD_CLASS_DESC =
+      "(Ljava/lang/String;)Ljava/lang/Class;";
+  private static final String CLASS_LOADER_LOAD_CLASS_RESOLVE_DESC =
+      "(Ljava/lang/String;Z)Ljava/lang/Class;";
+
+  /** Pattern for MethodHandles.Lookup.findClass method */
+  private static final String METHOD_HANDLES_LOOKUP_OWNER = "java/lang/invoke/MethodHandles$Lookup";
+
+  private static final String FIND_CLASS_NAME = "findClass";
+  private static final String FIND_CLASS_DESC = "(Ljava/lang/String;)Ljava/lang/Class;";
 
   /** Cache mapping class names to their containing module */
   private final Map<String, String> classToModuleCache;
@@ -334,11 +357,25 @@ public class ReflectionBytecodeScanner {
         // Add all recent JDK string literals as potential reflection targets
         reflectedClasses.addAll(recentStringLiterals);
         recentStringLiterals.clear();
-      } else {
-        // Other method calls might consume the strings, so clear them
-        // But be conservative - only clear if it's definitely consuming the string argument
-        // For safety, we keep the literals across method calls that don't match forName
       }
+      // Check for ClassLoader.loadClass(String) or ClassLoader.loadClass(String, boolean)
+      else if (CLASS_LOADER_OWNER.equals(owner)
+          && CLASS_LOADER_LOAD_CLASS_NAME.equals(name)
+          && (CLASS_LOADER_LOAD_CLASS_DESC.equals(descriptor)
+              || CLASS_LOADER_LOAD_CLASS_RESOLVE_DESC.equals(descriptor))) {
+
+        reflectedClasses.addAll(recentStringLiterals);
+        recentStringLiterals.clear();
+      }
+      // Check for MethodHandles.Lookup.findClass(String)
+      else if (METHOD_HANDLES_LOOKUP_OWNER.equals(owner)
+          && FIND_CLASS_NAME.equals(name)
+          && FIND_CLASS_DESC.equals(descriptor)) {
+
+        reflectedClasses.addAll(recentStringLiterals);
+        recentStringLiterals.clear();
+      }
+      // Other method calls - keep literals for potential subsequent reflection calls
     }
 
     @Override

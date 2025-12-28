@@ -39,4 +39,9 @@ build/
 ### Mac OS ###
 .DS_Store
 
+### Slim JRE outputs ###
+slim-jre/
+test-slim-jre/
+*-slim-jre/
+
 /.claude

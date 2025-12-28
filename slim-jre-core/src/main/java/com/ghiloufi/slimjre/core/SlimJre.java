@@ -36,6 +36,7 @@ public class SlimJre {
   private final JDepsAnalyzer jdepsAnalyzer;
   private final ServiceLoaderScanner serviceLoaderScanner;
   private final ReflectionBytecodeScanner reflectionScanner;
+  private final ApiUsageScanner apiUsageScanner;
   private final ModuleResolver moduleResolver;
   private final JLinkExecutor jlinkExecutor;
 
@@ -44,6 +45,7 @@ public class SlimJre {
     this.jdepsAnalyzer = new JDepsAnalyzer();
     this.serviceLoaderScanner = new ServiceLoaderScanner();
     this.reflectionScanner = new ReflectionBytecodeScanner();
+    this.apiUsageScanner = new ApiUsageScanner();
     this.moduleResolver = new ModuleResolver();
     this.jlinkExecutor = new JLinkExecutor();
   }
@@ -53,11 +55,13 @@ public class SlimJre {
       JDepsAnalyzer jdepsAnalyzer,
       ServiceLoaderScanner serviceLoaderScanner,
       ReflectionBytecodeScanner reflectionScanner,
+      ApiUsageScanner apiUsageScanner,
       ModuleResolver moduleResolver,
       JLinkExecutor jlinkExecutor) {
     this.jdepsAnalyzer = Objects.requireNonNull(jdepsAnalyzer);
     this.serviceLoaderScanner = Objects.requireNonNull(serviceLoaderScanner);
     this.reflectionScanner = Objects.requireNonNull(reflectionScanner);
+    this.apiUsageScanner = Objects.requireNonNull(apiUsageScanner);
     this.moduleResolver = Objects.requireNonNull(moduleResolver);
     this.jlinkExecutor = Objects.requireNonNull(jlinkExecutor);
   }
@@ -85,6 +89,7 @@ public class SlimJre {
     Set<String> jdepsModules;
     Set<String> serviceModules;
     Set<String> reflectionModules;
+    Set<String> apiUsageModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       // Submit all analysis tasks in parallel
@@ -99,6 +104,9 @@ public class SlimJre {
 
       Future<Set<String>> reflectionFuture =
           executor.submit(() -> reflectionScanner.scanJarsParallel(config.jars()));
+
+      Future<Set<String>> apiUsageFuture =
+          executor.submit(() -> apiUsageScanner.scanJarsParallel(config.jars()));
 
       // Collect results
       try {
@@ -121,6 +129,14 @@ public class SlimJre {
               reflectionModules.size(),
               formatModules(reflectionModules));
         }
+
+        apiUsageModules = apiUsageFuture.get();
+        if (!apiUsageModules.isEmpty()) {
+          log.info(
+              "API usage patterns require {} module(s): {}",
+              apiUsageModules.size(),
+              formatModules(apiUsageModules));
+        }
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
       }
@@ -131,6 +147,7 @@ public class SlimJre {
     allModules.addAll(jdepsModules);
     allModules.addAll(serviceModules);
     allModules.addAll(reflectionModules);
+    allModules.addAll(apiUsageModules);
     allModules.addAll(config.additionalModules());
 
     // Remove excluded modules
@@ -203,6 +220,7 @@ public class SlimJre {
     Set<String> jdepsModules;
     Set<String> serviceModules;
     Set<String> reflectionModules;
+    Set<String> apiUsageModules;
     Map<Path, Set<String>> perJarModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -213,6 +231,8 @@ public class SlimJre {
           executor.submit(() -> serviceLoaderScanner.scanForServiceModulesParallel(jars));
       Future<Set<String>> reflectionFuture =
           executor.submit(() -> reflectionScanner.scanJarsParallel(jars));
+      Future<Set<String>> apiUsageFuture =
+          executor.submit(() -> apiUsageScanner.scanJarsParallel(jars));
       Future<Map<Path, Set<String>>> perJarFuture =
           executor.submit(() -> jdepsAnalyzer.analyzeRequiredModulesPerJar(jars));
 
@@ -221,6 +241,7 @@ public class SlimJre {
         jdepsModules = jdepsFuture.get();
         serviceModules = serviceFuture.get();
         reflectionModules = reflectionFuture.get();
+        apiUsageModules = apiUsageFuture.get();
         perJarModules = perJarFuture.get();
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
@@ -232,9 +253,15 @@ public class SlimJre {
     allModules.addAll(jdepsModules);
     allModules.addAll(serviceModules);
     allModules.addAll(reflectionModules);
+    allModules.addAll(apiUsageModules);
 
     return new AnalysisResult(
-        jdepsModules, serviceModules, reflectionModules, allModules, perJarModules);
+        jdepsModules,
+        serviceModules,
+        reflectionModules,
+        apiUsageModules,
+        allModules,
+        perJarModules);
   }
 
   /** Creates a new fluent builder for SlimJre operations. */
