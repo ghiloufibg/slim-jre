@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
  * @param reflectionModules Modules required by Class.forName/loadClass/findClass reflection
  *     patterns
  * @param apiUsageModules Modules required by JDK API usage patterns
+ * @param graalVmMetadataModules Modules required by GraalVM native-image metadata
  * @param allModules Combined set of all required modules
  * @param perJarModules Breakdown of modules required by each JAR
  */
@@ -21,20 +22,23 @@ public record AnalysisResult(
     Set<String> serviceLoaderModules,
     Set<String> reflectionModules,
     Set<String> apiUsageModules,
+    Set<String> graalVmMetadataModules,
     Set<String> allModules,
     Map<Path, Set<String>> perJarModules) {
 
-  /** Creates an AnalysisResult without API usage modules (backward compatibility). */
+  /** Creates an AnalysisResult without GraalVM metadata modules (backward compatibility). */
   public AnalysisResult(
       Set<String> requiredModules,
       Set<String> serviceLoaderModules,
       Set<String> reflectionModules,
+      Set<String> apiUsageModules,
       Set<String> allModules,
       Map<Path, Set<String>> perJarModules) {
     this(
         requiredModules,
         serviceLoaderModules,
         reflectionModules,
+        apiUsageModules,
         Set.of(),
         allModules,
         perJarModules);
@@ -46,6 +50,7 @@ public record AnalysisResult(
     serviceLoaderModules = Set.copyOf(serviceLoaderModules);
     reflectionModules = Set.copyOf(reflectionModules);
     apiUsageModules = Set.copyOf(apiUsageModules);
+    graalVmMetadataModules = Set.copyOf(graalVmMetadataModules);
     allModules = Set.copyOf(allModules);
     perJarModules = Map.copyOf(perJarModules);
   }
@@ -60,6 +65,9 @@ public record AnalysisResult(
         .append("\n");
     sb.append("  Reflection modules: ").append(formatModules(reflectionModules)).append("\n");
     sb.append("  API usage modules: ").append(formatModules(apiUsageModules)).append("\n");
+    sb.append("  GraalVM metadata modules: ")
+        .append(formatModules(graalVmMetadataModules))
+        .append("\n");
     sb.append("  Total modules: ").append(allModules.size()).append("\n");
 
     if (!perJarModules.isEmpty()) {

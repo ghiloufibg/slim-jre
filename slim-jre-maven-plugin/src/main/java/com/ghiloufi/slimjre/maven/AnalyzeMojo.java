@@ -53,7 +53,7 @@ public class AnalyzeMojo extends AbstractSlimJreMojo {
 
       // Analyze
       SlimJre slimJre = new SlimJre();
-      AnalysisResult result = slimJre.analyzeOnly(jars);
+      AnalysisResult result = slimJre.analyzeOnly(jars, scanServiceLoaders, scanGraalVmMetadata);
 
       // Combine with additional/excluded modules
       Set<String> allModules = new java.util.TreeSet<>(result.allModules());
@@ -74,6 +74,30 @@ public class AnalyzeMojo extends AbstractSlimJreMojo {
         getLog().info("");
         getLog().info("Service Loader Modules: " + result.serviceLoaderModules().size());
         for (String module : result.serviceLoaderModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.reflectionModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("Reflection Modules: " + result.reflectionModules().size());
+        for (String module : result.reflectionModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.apiUsageModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("API Usage Modules: " + result.apiUsageModules().size());
+        for (String module : result.apiUsageModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.graalVmMetadataModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("GraalVM Metadata Modules: " + result.graalVmMetadataModules().size());
+        for (String module : result.graalVmMetadataModules().stream().sorted().toList()) {
           getLog().info("  - " + module);
         }
       }

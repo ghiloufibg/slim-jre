@@ -96,6 +96,7 @@ public class CreateJreMojo extends AbstractSlimJreMojo {
               .noHeaderFiles(noHeaderFiles)
               .noManPages(noManPages)
               .scanServiceLoaders(scanServiceLoaders)
+              .scanGraalVmMetadata(scanGraalVmMetadata)
               .additionalModules(getAdditionalModulesSet())
               .excludeModules(getExcludedModulesSet())
               .verbose(verbose)

@@ -20,6 +20,7 @@ import java.util.Set;
  * @param noHeaderFiles Whether to exclude header files (default: true)
  * @param noManPages Whether to exclude man pages (default: true)
  * @param scanServiceLoaders Whether to scan META-INF/services (default: true)
+ * @param scanGraalVmMetadata Whether to scan GraalVM native-image metadata (default: true)
  * @param verbose Whether to output verbose logging (default: false)
  */
 public record SlimJreConfig(
@@ -32,6 +33,7 @@ public record SlimJreConfig(
     boolean noHeaderFiles,
     boolean noManPages,
     boolean scanServiceLoaders,
+    boolean scanGraalVmMetadata,
     boolean verbose) {
   public SlimJreConfig {
     // Defensive copies
@@ -101,6 +103,7 @@ public record SlimJreConfig(
     private boolean noHeaderFiles = true;
     private boolean noManPages = true;
     private boolean scanServiceLoaders = true;
+    private boolean scanGraalVmMetadata = true;
     private boolean verbose = false;
 
     /** Adds a JAR file to analyze. */
@@ -175,6 +178,12 @@ public record SlimJreConfig(
       return this;
     }
 
+    /** Sets whether to scan GraalVM native-image metadata for additional modules. */
+    public Builder scanGraalVmMetadata(boolean scanGraalVmMetadata) {
+      this.scanGraalVmMetadata = scanGraalVmMetadata;
+      return this;
+    }
+
     /** Sets verbose output mode. */
     public Builder verbose(boolean verbose) {
       this.verbose = verbose;
@@ -193,6 +202,7 @@ public record SlimJreConfig(
           noHeaderFiles,
           noManPages,
           scanServiceLoaders,
+          scanGraalVmMetadata,
           verbose);
     }
   }

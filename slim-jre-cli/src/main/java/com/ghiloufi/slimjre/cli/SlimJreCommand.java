@@ -78,6 +78,13 @@ public class SlimJreCommand implements Callable<Integer> {
   private boolean noServiceScan;
 
   @Option(
+      names = {"--no-graalvm-metadata"},
+      description = "Don't scan GraalVM native-image metadata",
+      negatable = true,
+      defaultValue = "false")
+  private boolean noGraalVmMetadata;
+
+  @Option(
       names = {"--analyze-only"},
       description = "Only print required modules, don't create JRE")
   private boolean analyzeOnly;
@@ -117,7 +124,7 @@ public class SlimJreCommand implements Callable<Integer> {
 
       if (analyzeOnly) {
         // Analysis mode
-        AnalysisResult analysis = slimJre.analyzeOnly(jars);
+        AnalysisResult analysis = slimJre.analyzeOnly(jars, !noServiceScan, !noGraalVmMetadata);
         printAnalysis(analysis);
         return 0;
       }
@@ -130,6 +137,7 @@ public class SlimJreCommand implements Callable<Integer> {
               .stripDebug(!noStrip)
               .compression(compression)
               .scanServiceLoaders(!noServiceScan)
+              .scanGraalVmMetadata(!noGraalVmMetadata)
               .verbose(verbose);
 
       if (addModules != null) {
@@ -194,6 +202,24 @@ public class SlimJreCommand implements Callable<Integer> {
       System.out.println();
       System.out.println("Service Loader Modules:");
       printModuleSet(analysis.serviceLoaderModules(), "  ");
+    }
+
+    if (!analysis.reflectionModules().isEmpty()) {
+      System.out.println();
+      System.out.println("Reflection Modules:");
+      printModuleSet(analysis.reflectionModules(), "  ");
+    }
+
+    if (!analysis.apiUsageModules().isEmpty()) {
+      System.out.println();
+      System.out.println("API Usage Modules:");
+      printModuleSet(analysis.apiUsageModules(), "  ");
+    }
+
+    if (!analysis.graalVmMetadataModules().isEmpty()) {
+      System.out.println();
+      System.out.println("GraalVM Metadata Modules:");
+      printModuleSet(analysis.graalVmMetadataModules(), "  ");
     }
 
     System.out.println();

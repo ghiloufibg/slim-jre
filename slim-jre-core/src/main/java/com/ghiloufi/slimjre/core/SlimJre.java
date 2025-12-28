@@ -1,11 +1,19 @@
 package com.ghiloufi.slimjre.core;
 
-import com.ghiloufi.slimjre.config.*;
+import com.ghiloufi.slimjre.config.AnalysisResult;
+import com.ghiloufi.slimjre.config.JLinkOptions;
+import com.ghiloufi.slimjre.config.Result;
+import com.ghiloufi.slimjre.config.SlimJreConfig;
 import com.ghiloufi.slimjre.exception.SlimJreException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -37,6 +45,7 @@ public class SlimJre {
   private final ServiceLoaderScanner serviceLoaderScanner;
   private final ReflectionBytecodeScanner reflectionScanner;
   private final ApiUsageScanner apiUsageScanner;
+  private final GraalVmMetadataScanner graalVmMetadataScanner;
   private final ModuleResolver moduleResolver;
   private final JLinkExecutor jlinkExecutor;
 
@@ -46,6 +55,7 @@ public class SlimJre {
     this.serviceLoaderScanner = new ServiceLoaderScanner();
     this.reflectionScanner = new ReflectionBytecodeScanner();
     this.apiUsageScanner = new ApiUsageScanner();
+    this.graalVmMetadataScanner = new GraalVmMetadataScanner();
     this.moduleResolver = new ModuleResolver();
     this.jlinkExecutor = new JLinkExecutor();
   }
@@ -56,12 +66,14 @@ public class SlimJre {
       ServiceLoaderScanner serviceLoaderScanner,
       ReflectionBytecodeScanner reflectionScanner,
       ApiUsageScanner apiUsageScanner,
+      GraalVmMetadataScanner graalVmMetadataScanner,
       ModuleResolver moduleResolver,
       JLinkExecutor jlinkExecutor) {
     this.jdepsAnalyzer = Objects.requireNonNull(jdepsAnalyzer);
     this.serviceLoaderScanner = Objects.requireNonNull(serviceLoaderScanner);
     this.reflectionScanner = Objects.requireNonNull(reflectionScanner);
     this.apiUsageScanner = Objects.requireNonNull(apiUsageScanner);
+    this.graalVmMetadataScanner = Objects.requireNonNull(graalVmMetadataScanner);
     this.moduleResolver = Objects.requireNonNull(moduleResolver);
     this.jlinkExecutor = Objects.requireNonNull(jlinkExecutor);
   }
@@ -90,6 +102,7 @@ public class SlimJre {
     Set<String> serviceModules;
     Set<String> reflectionModules;
     Set<String> apiUsageModules;
+    Set<String> graalVmModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       // Submit all analysis tasks in parallel
@@ -107,6 +120,11 @@ public class SlimJre {
 
       Future<Set<String>> apiUsageFuture =
           executor.submit(() -> apiUsageScanner.scanJarsParallel(config.jars()));
+
+      Future<Set<String>> graalVmFuture =
+          config.scanGraalVmMetadata()
+              ? executor.submit(() -> graalVmMetadataScanner.scanJarsParallel(config.jars()))
+              : null;
 
       // Collect results
       try {
@@ -137,6 +155,14 @@ public class SlimJre {
               apiUsageModules.size(),
               formatModules(apiUsageModules));
         }
+
+        graalVmModules = graalVmFuture != null ? graalVmFuture.get() : Set.of();
+        if (!graalVmModules.isEmpty()) {
+          log.info(
+              "GraalVM metadata requires {} module(s): {}",
+              graalVmModules.size(),
+              formatModules(graalVmModules));
+        }
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
       }
@@ -148,6 +174,7 @@ public class SlimJre {
     allModules.addAll(serviceModules);
     allModules.addAll(reflectionModules);
     allModules.addAll(apiUsageModules);
+    allModules.addAll(graalVmModules);
     allModules.addAll(config.additionalModules());
 
     // Remove excluded modules
@@ -215,12 +242,26 @@ public class SlimJre {
    * @return analysis result with module breakdown
    */
   public AnalysisResult analyzeOnly(List<Path> jars) {
+    return analyzeOnly(jars, true, true);
+  }
+
+  /**
+   * Analyzes JARs and returns required modules without creating a JRE.
+   *
+   * @param jars JARs to analyze
+   * @param scanServiceLoaders whether to scan for service loader dependencies
+   * @param scanGraalVmMetadata whether to scan GraalVM native-image metadata
+   * @return analysis result with module breakdown
+   */
+  public AnalysisResult analyzeOnly(
+      List<Path> jars, boolean scanServiceLoaders, boolean scanGraalVmMetadata) {
     log.info("Analyzing {} JAR(s) in parallel...", jars.size());
 
     Set<String> jdepsModules;
     Set<String> serviceModules;
     Set<String> reflectionModules;
     Set<String> apiUsageModules;
+    Set<String> graalVmModules;
     Map<Path, Set<String>> perJarModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -228,20 +269,27 @@ public class SlimJre {
       Future<Set<String>> jdepsFuture =
           executor.submit(() -> jdepsAnalyzer.analyzeRequiredModules(jars));
       Future<Set<String>> serviceFuture =
-          executor.submit(() -> serviceLoaderScanner.scanForServiceModulesParallel(jars));
+          scanServiceLoaders
+              ? executor.submit(() -> serviceLoaderScanner.scanForServiceModulesParallel(jars))
+              : null;
       Future<Set<String>> reflectionFuture =
           executor.submit(() -> reflectionScanner.scanJarsParallel(jars));
       Future<Set<String>> apiUsageFuture =
           executor.submit(() -> apiUsageScanner.scanJarsParallel(jars));
+      Future<Set<String>> graalVmFuture =
+          scanGraalVmMetadata
+              ? executor.submit(() -> graalVmMetadataScanner.scanJarsParallel(jars))
+              : null;
       Future<Map<Path, Set<String>>> perJarFuture =
           executor.submit(() -> jdepsAnalyzer.analyzeRequiredModulesPerJar(jars));
 
       // Collect results
       try {
         jdepsModules = jdepsFuture.get();
-        serviceModules = serviceFuture.get();
+        serviceModules = serviceFuture != null ? serviceFuture.get() : Set.of();
         reflectionModules = reflectionFuture.get();
         apiUsageModules = apiUsageFuture.get();
+        graalVmModules = graalVmFuture != null ? graalVmFuture.get() : Set.of();
         perJarModules = perJarFuture.get();
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
@@ -254,12 +302,14 @@ public class SlimJre {
     allModules.addAll(serviceModules);
     allModules.addAll(reflectionModules);
     allModules.addAll(apiUsageModules);
+    allModules.addAll(graalVmModules);
 
     return new AnalysisResult(
         jdepsModules,
         serviceModules,
         reflectionModules,
         apiUsageModules,
+        graalVmModules,
         allModules,
         perJarModules);
   }
@@ -357,6 +407,12 @@ public class SlimJre {
       return this;
     }
 
+    /** Sets whether to scan GraalVM native-image metadata for additional modules. */
+    public FluentBuilder scanGraalVmMetadata(boolean scan) {
+      configBuilder.scanGraalVmMetadata(scan);
+      return this;
+    }
+
     /** Sets verbose output mode. */
     public FluentBuilder verbose(boolean verbose) {
       configBuilder.verbose(verbose);
@@ -386,7 +442,8 @@ public class SlimJre {
         slimJre = new SlimJre();
       }
       SlimJreConfig config = configBuilder.build();
-      return slimJre.analyzeOnly(config.jars());
+      return slimJre.analyzeOnly(
+          config.jars(), config.scanServiceLoaders(), config.scanGraalVmMetadata());
     }
   }
 }

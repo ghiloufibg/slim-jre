@@ -31,6 +31,10 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
   @Parameter(property = "slimjre.scanServiceLoaders", defaultValue = "true")
   protected boolean scanServiceLoaders;
 
+  /** Whether to scan GraalVM native-image metadata for additional modules. */
+  @Parameter(property = "slimjre.scanGraalVmMetadata", defaultValue = "true")
+  protected boolean scanGraalVmMetadata;
+
   /** Whether to output verbose logging. */
   @Parameter(property = "slimjre.verbose", defaultValue = "false")
   protected boolean verbose;

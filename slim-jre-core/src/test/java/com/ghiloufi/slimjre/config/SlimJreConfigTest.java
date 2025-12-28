@@ -98,7 +98,7 @@ class SlimJreConfigTest {
 
     SlimJreConfig config =
         new SlimJreConfig(
-            List.of(jar), null, Set.of(), Set.of(), true, "zip-6", true, true, true, false);
+            List.of(jar), null, Set.of(), Set.of(), true, "zip-6", true, true, true, true, false);
 
     assertThatThrownBy(config::validate)
         .isInstanceOf(ConfigurationException.class)
@@ -153,6 +153,7 @@ class SlimJreConfigTest {
             excludeModules,
             true,
             "zip-6",
+            true,
             true,
             true,
             true,
