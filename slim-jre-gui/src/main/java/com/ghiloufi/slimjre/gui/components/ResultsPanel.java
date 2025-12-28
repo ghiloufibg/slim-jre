@@ -27,10 +27,12 @@ public class ResultsPanel extends JPanel {
 
   private final JTabbedPane tabbedPane;
   private final JTextArea summaryArea;
+  private final ModuleSourceChart moduleChart;
   private final JTable moduleTable;
   private final DefaultTableModel tableModel;
   private final JTextField filterField;
   private final TableRowSorter<DefaultTableModel> rowSorter;
+  private final PerJarTreePanel perJarTreePanel;
 
   /** Creates a new results panel with tabbed display. */
   public ResultsPanel() {
@@ -38,13 +40,28 @@ public class ResultsPanel extends JPanel {
 
     tabbedPane = new JTabbedPane();
 
-    // Summary tab
+    // Summary tab with chart
+    JPanel summaryPanel = new JPanel(new BorderLayout(10, 10));
+    summaryPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
     summaryArea = new JTextArea();
     summaryArea.setEditable(false);
     summaryArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
     summaryArea.setText(getEmptyStateText());
     JScrollPane summaryScroll = new JScrollPane(summaryArea);
-    tabbedPane.addTab("Summary", summaryScroll);
+
+    moduleChart = new ModuleSourceChart();
+    moduleChart.setPreferredSize(new java.awt.Dimension(280, 260));
+
+    // Split pane for summary text and chart
+    JSplitPane summarySplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+    summarySplit.setLeftComponent(summaryScroll);
+    summarySplit.setRightComponent(moduleChart);
+    summarySplit.setResizeWeight(0.6);
+    summarySplit.setDividerLocation(350);
+
+    summaryPanel.add(summarySplit, BorderLayout.CENTER);
+    tabbedPane.addTab("Summary", summaryPanel);
 
     // Modules tab
     String[] columns = {"Module", "Source"};
@@ -59,7 +76,7 @@ public class ResultsPanel extends JPanel {
     moduleTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
     moduleTable.getTableHeader().setReorderingAllowed(false);
 
-    // Row sorter for filtering
+    // Row sorter for filtering and sorting
     rowSorter = new TableRowSorter<>(tableModel);
     moduleTable.setRowSorter(rowSorter);
 
@@ -94,6 +111,10 @@ public class ResultsPanel extends JPanel {
     modulesPanel.add(filterPanel, BorderLayout.NORTH);
     modulesPanel.add(new JScrollPane(moduleTable), BorderLayout.CENTER);
     tabbedPane.addTab("Modules", modulesPanel);
+
+    // Per-JAR tree view tab
+    perJarTreePanel = new PerJarTreePanel();
+    tabbedPane.addTab("Per-JAR", perJarTreePanel);
 
     add(tabbedPane, BorderLayout.CENTER);
   }
@@ -181,6 +202,9 @@ public class ResultsPanel extends JPanel {
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
 
+    // Update pie chart
+    moduleChart.setData(result);
+
     // Populate module table
     tableModel.setRowCount(0);
     addModulesToTable(result.requiredModules(), "jdeps");
@@ -188,6 +212,9 @@ public class ResultsPanel extends JPanel {
     addModulesToTable(result.reflectionModules(), "reflection");
     addModulesToTable(result.apiUsageModules(), "api-usage");
     addModulesToTable(result.graalVmMetadataModules(), "graalvm");
+
+    // Update per-JAR tree
+    perJarTreePanel.setData(result);
 
     // Select summary tab
     tabbedPane.setSelectedIndex(0);
@@ -255,8 +282,10 @@ public class ResultsPanel extends JPanel {
   /** Clears all results from the panel. */
   public void clear() {
     summaryArea.setText(getEmptyStateText());
+    moduleChart.clear();
     tableModel.setRowCount(0);
     filterField.setText("");
+    perJarTreePanel.clear();
   }
 
   private String wrapText(String text, int width) {

@@ -14,6 +14,7 @@ import java.awt.*;
 import java.nio.file.Path;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.AbstractAction;
 
 /**
  * Main application window for Slim JRE GUI.
@@ -58,6 +59,9 @@ public class MainFrame extends JFrame {
 
     // Wire up actions
     wireActions();
+
+    // Set up keyboard shortcuts
+    setupKeyboardShortcuts();
 
     // Initial state
     updateState();
@@ -153,6 +157,60 @@ public class MainFrame extends JFrame {
 
     // Create JRE button
     actionPanel.setCreateJreAction(e -> runCreateJre());
+  }
+
+  private void setupKeyboardShortcuts() {
+    JRootPane rootPane = getRootPane();
+    InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+    ActionMap actionMap = rootPane.getActionMap();
+
+    // F1 - Help/About
+    inputMap.put(KeyStroke.getKeyStroke("F1"), "showHelp");
+    actionMap.put(
+        "showHelp",
+        new AbstractAction() {
+          @Override
+          public void actionPerformed(java.awt.event.ActionEvent e) {
+            showAboutDialog();
+          }
+        });
+
+    // Ctrl+O - Add JAR
+    inputMap.put(KeyStroke.getKeyStroke("control O"), "addJar");
+    actionMap.put(
+        "addJar",
+        new AbstractAction() {
+          @Override
+          public void actionPerformed(java.awt.event.ActionEvent e) {
+            jarSelectionPanel.showAddJarDialog();
+          }
+        });
+
+    // Ctrl+Shift+O - Add Folder
+    inputMap.put(KeyStroke.getKeyStroke("control shift O"), "addFolder");
+    actionMap.put(
+        "addFolder",
+        new AbstractAction() {
+          @Override
+          public void actionPerformed(java.awt.event.ActionEvent e) {
+            jarSelectionPanel.showAddFolderDialog();
+          }
+        });
+
+    // Escape - Cancel current operation (if possible) or clear selection
+    inputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "cancel");
+    actionMap.put(
+        "cancel",
+        new AbstractAction() {
+          @Override
+          public void actionPerformed(java.awt.event.ActionEvent e) {
+            if (currentWorker != null && !currentWorker.isDone()) {
+              currentWorker.cancel(true);
+              actionPanel.setProgress(0, "Cancelled");
+              updateState();
+            }
+          }
+        });
   }
 
   private void updateState() {

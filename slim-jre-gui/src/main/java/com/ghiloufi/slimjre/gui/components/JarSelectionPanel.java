@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.*;
+import javax.swing.AbstractAction;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
@@ -44,6 +45,7 @@ public class JarSelectionPanel extends JPanel {
 
     initializeComponents();
     setupDragAndDrop();
+    setupKeyboardShortcuts();
   }
 
   private void initializeComponents() {
@@ -108,8 +110,12 @@ public class JarSelectionPanel extends JPanel {
         jarList,
         DnDConstants.ACTION_COPY,
         new DropTargetAdapter() {
+          private final Color originalBackground = jarList.getBackground();
+          private final Color dropHighlight = new Color(200, 230, 255);
+
           @Override
           public void drop(DropTargetDropEvent event) {
+            jarList.setBackground(originalBackground);
             try {
               event.acceptDrop(DnDConstants.ACTION_COPY);
               @SuppressWarnings("unchecked")
@@ -131,6 +137,21 @@ public class JarSelectionPanel extends JPanel {
           }
 
           @Override
+          public void dragEnter(DropTargetDragEvent event) {
+            if (event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+              jarList.setBackground(dropHighlight);
+              event.acceptDrag(DnDConstants.ACTION_COPY);
+            } else {
+              event.rejectDrag();
+            }
+          }
+
+          @Override
+          public void dragExit(DropTargetEvent event) {
+            jarList.setBackground(originalBackground);
+          }
+
+          @Override
           public void dragOver(DropTargetDragEvent event) {
             if (event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
               event.acceptDrag(DnDConstants.ACTION_COPY);
@@ -139,6 +160,23 @@ public class JarSelectionPanel extends JPanel {
             }
           }
         });
+  }
+
+  private void setupKeyboardShortcuts() {
+    // Delete key to remove selected items
+    jarList
+        .getInputMap(JComponent.WHEN_FOCUSED)
+        .put(KeyStroke.getKeyStroke("DELETE"), "removeSelected");
+    jarList
+        .getActionMap()
+        .put(
+            "removeSelected",
+            new AbstractAction() {
+              @Override
+              public void actionPerformed(java.awt.event.ActionEvent e) {
+                removeSelected();
+              }
+            });
   }
 
   /** Shows a file chooser dialog to select JAR files. */
