@@ -5,6 +5,7 @@ import com.ghiloufi.slimjre.config.JLinkOptions;
 import com.ghiloufi.slimjre.config.Result;
 import com.ghiloufi.slimjre.config.SlimJreConfig;
 import com.ghiloufi.slimjre.exception.SlimJreException;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -336,6 +337,43 @@ public class SlimJre {
   public static class FluentBuilder {
     private final SlimJreConfig.Builder configBuilder = SlimJreConfig.builder();
     private SlimJre slimJre;
+    private DiscoveryResult discoveryResult;
+
+    /**
+     * Discovers all JARs from a directory, fat JAR, or WAR file.
+     *
+     * <p>Supports:
+     *
+     * <ul>
+     *   <li>Directories (recursive scan, e.g., Quarkus target/quarkus-app)
+     *   <li>Fat JARs (Spring Boot BOOT-INF/lib extraction)
+     *   <li>WAR files (WEB-INF/lib extraction)
+     *   <li>JARs with MANIFEST Class-Path references
+     * </ul>
+     *
+     * @param input path to directory or archive to discover JARs from
+     * @return this builder for chaining
+     * @throws SlimJreException if discovery fails
+     */
+    public FluentBuilder discover(Path input) {
+      try {
+        JarDiscovery jarDiscovery = new JarDiscovery();
+        this.discoveryResult = jarDiscovery.discover(input);
+
+        // Pass discovered JARs to the config builder
+        configBuilder.jars(discoveryResult.jarList());
+
+        // Log discovery results
+        log.info("Discovered {} JAR(s) from: {}", discoveryResult.jarCount(), input);
+        if (discoveryResult.hasWarnings()) {
+          discoveryResult.warnings().forEach(w -> log.warn("Discovery warning: {}", w));
+        }
+
+        return this;
+      } catch (IOException e) {
+        throw new SlimJreException("JAR discovery failed: " + e.getMessage(), e);
+      }
+    }
 
     /** Adds a JAR file to analyze. */
     public FluentBuilder jar(Path jar) {
@@ -425,25 +463,49 @@ public class SlimJre {
       return slimJre;
     }
 
-    /** Creates the minimal JRE. This is a shortcut for {@code build().createMinimalJre(...)}. */
+    /**
+     * Creates the minimal JRE. This is a shortcut for {@code build().createMinimalJre(...)}.
+     *
+     * <p>If {@link #discover(Path)} was used, the temporary directory containing extracted nested
+     * JARs will be cleaned up after JRE creation.
+     */
     public Result create() {
-      if (slimJre == null) {
-        slimJre = new SlimJre();
+      try {
+        if (slimJre == null) {
+          slimJre = new SlimJre();
+        }
+        return slimJre.createMinimalJre(configBuilder.build());
+      } finally {
+        cleanupDiscovery();
       }
-      return slimJre.createMinimalJre(configBuilder.build());
     }
 
     /**
      * Analyzes the JARs without creating a JRE. This is a shortcut for {@code
      * build().analyzeOnly(...)}.
+     *
+     * <p>If {@link #discover(Path)} was used, the temporary directory containing extracted nested
+     * JARs will be cleaned up after analysis.
      */
     public AnalysisResult analyze() {
-      if (slimJre == null) {
-        slimJre = new SlimJre();
+      try {
+        if (slimJre == null) {
+          slimJre = new SlimJre();
+        }
+        SlimJreConfig config = configBuilder.build();
+        return slimJre.analyzeOnly(
+            config.jars(), config.scanServiceLoaders(), config.scanGraalVmMetadata());
+      } finally {
+        cleanupDiscovery();
       }
-      SlimJreConfig config = configBuilder.build();
-      return slimJre.analyzeOnly(
-          config.jars(), config.scanServiceLoaders(), config.scanGraalVmMetadata());
+    }
+
+    /** Cleans up any temporary files created during JAR discovery. */
+    private void cleanupDiscovery() {
+      if (discoveryResult != null) {
+        discoveryResult.close();
+        discoveryResult = null;
+      }
     }
   }
 }
