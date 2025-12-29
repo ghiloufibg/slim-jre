@@ -18,5 +18,7 @@
 
     <modules>
         <module>simple-app</module>
+        <module>spring-boot-hello</module>
+        <module>quarkus-hello</module>
     </modules>
 </project>
