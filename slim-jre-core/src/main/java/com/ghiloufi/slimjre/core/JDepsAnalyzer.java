@@ -3,9 +3,12 @@ package com.ghiloufi.slimjre.core;
 import com.ghiloufi.slimjre.exception.JDepsException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.module.ModuleDescriptor;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
@@ -15,13 +18,28 @@ import org.slf4j.LoggerFactory;
 /**
  * Analyzes JAR files using jdeps to determine required JDK modules. Uses the ToolProvider API for
  * in-process execution.
+ *
+ * <p>Handles both modular and non-modular JARs:
+ *
+ * <ul>
+ *   <li>Non-modular JARs: Analyzed via jdeps bytecode analysis
+ *   <li>Modular JARs: Dependencies extracted from module-info.class using {@link ModuleDescriptor}
+ * </ul>
+ *
+ * <p>Note: Modules that are not available in the current JDK (e.g., java.xml.ws removed in JDK 11)
+ * are automatically filtered out.
  */
 public class JDepsAnalyzer {
 
   private static final Logger log = LoggerFactory.getLogger(JDepsAnalyzer.class);
 
+  /** JDK module name prefix - used to filter only JDK modules from requires directives. */
+  private static final Set<String> JDK_MODULE_PREFIXES =
+      Set.of("java.", "jdk.", "javafx.", "oracle.");
+
   private final ToolProvider jdeps;
   private final int javaVersion;
+  private final Set<String> availableJdkModules;
 
   /**
    * Creates a new JDepsAnalyzer.
@@ -34,6 +52,19 @@ public class JDepsAnalyzer {
             .orElseThrow(
                 () -> new JDepsException("jdeps tool not found. Ensure you are running on JDK 9+"));
     this.javaVersion = Runtime.version().feature();
+    this.availableJdkModules = discoverAvailableModules();
+    log.debug("JDK {} has {} available modules", javaVersion, availableJdkModules.size());
+  }
+
+  /**
+   * Discovers all available JDK modules in the current runtime.
+   *
+   * @return set of available module names
+   */
+  private Set<String> discoverAvailableModules() {
+    return java.lang.module.ModuleFinder.ofSystem().findAll().stream()
+        .map(ref -> ref.descriptor().name())
+        .collect(Collectors.toCollection(TreeSet::new));
   }
 
   /**
@@ -57,9 +88,17 @@ public class JDepsAnalyzer {
   }
 
   /**
-   * Analyzes multiple JARs and merges their required modules. Modular JARs (those containing
-   * module-info.class) are filtered out since jdeps requires all module dependencies to be present
-   * on the module-path, which is impractical for mixed modular/non-modular classpaths.
+   * Analyzes multiple JARs and merges their required modules.
+   *
+   * <p>Uses a hybrid approach:
+   *
+   * <ul>
+   *   <li>Non-modular JARs: Analyzed via jdeps bytecode analysis
+   *   <li>Modular JARs: JDK dependencies extracted from module-info.class requires directives
+   * </ul>
+   *
+   * <p>This ensures we don't miss JDK module dependencies from modular JARs like Jackson, SLF4J,
+   * etc.
    *
    * @param jars list of JAR files to analyze
    * @return set of required JDK module names
@@ -70,20 +109,63 @@ public class JDepsAnalyzer {
       throw new JDepsException("At least one JAR file must be specified");
     }
 
-    // Filter out modular JARs - jdeps fails on modular JARs when module dependencies
-    // aren't all present on the module-path
-    List<Path> nonModularJars = filterNonModularJars(jars);
-    if (nonModularJars.isEmpty()) {
-      log.warn("All {} JAR(s) are modular, defaulting to java.base", jars.size());
-      return Set.of("java.base");
+    Set<String> allModules = new TreeSet<>();
+
+    // Separate modular and non-modular JARs
+    List<Path> nonModularJars = new ArrayList<>();
+    List<Path> modularJars = new ArrayList<>();
+    for (Path jar : jars) {
+      if (isModularJar(jar)) {
+        modularJars.add(jar);
+      } else {
+        nonModularJars.add(jar);
+      }
     }
 
     log.debug(
-        "Analyzing {} non-modular JAR(s) for module dependencies (filtered {} modular JARs)",
+        "Analyzing {} JAR(s): {} non-modular (jdeps), {} modular (module-info parsing)",
+        jars.size(),
         nonModularJars.size(),
-        jars.size() - nonModularJars.size());
+        modularJars.size());
 
-    List<String> args = buildArguments(nonModularJars, jars);
+    // Step 1: Analyze non-modular JARs with jdeps
+    if (!nonModularJars.isEmpty()) {
+      Set<String> jdepsModules = analyzeWithJdeps(nonModularJars, jars);
+      allModules.addAll(jdepsModules);
+      log.debug("jdeps detected {} modules from non-modular JARs", jdepsModules.size());
+    }
+
+    // Step 2: Extract JDK module dependencies from modular JARs via module-info.class
+    if (!modularJars.isEmpty()) {
+      Set<String> modularDeps = extractModularJarDependencies(modularJars);
+      int newModules = 0;
+      for (String mod : modularDeps) {
+        if (allModules.add(mod)) {
+          newModules++;
+        }
+      }
+      log.debug(
+          "module-info parsing added {} new modules from {} modular JARs",
+          newModules,
+          modularJars.size());
+    }
+
+    // Ensure java.base is always present
+    allModules.add("java.base");
+
+    log.debug("Total detected modules: {}", allModules);
+    return allModules;
+  }
+
+  /**
+   * Analyzes non-modular JARs using jdeps.
+   *
+   * @param targetJars non-modular JARs to analyze
+   * @param allJars all JARs for classpath resolution
+   * @return set of required JDK module names
+   */
+  private Set<String> analyzeWithJdeps(List<Path> targetJars, List<Path> allJars) {
+    List<String> args = buildArguments(targetJars, allJars);
     log.trace("jdeps arguments: {}", args);
 
     ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -105,28 +187,131 @@ public class JDepsAnalyzer {
           "jdeps failed with exit code " + exitCode + (error.isEmpty() ? "" : ": " + error));
     }
 
-    Set<String> modules = parseModuleOutput(output);
-    log.debug("Detected modules: {}", modules);
-
-    return modules;
+    return parseModuleOutput(output);
   }
 
   /**
-   * Filters out modular JARs (those containing module-info.class).
+   * Extracts JDK module dependencies from modular JARs by parsing their module-info.class files.
    *
-   * @param jars list of JAR files
-   * @return list of non-modular JARs
+   * <p>This addresses the limitation that jdeps cannot analyze modular JARs without all their
+   * module dependencies present. Instead, we directly read the module descriptor and extract only
+   * JDK module requires.
+   *
+   * <p>Note: Modules that are not available in the current JDK (e.g., java.xml.ws removed in JDK
+   * 11) are automatically filtered out with a warning.
+   *
+   * @param modularJars list of modular JARs to analyze
+   * @return set of JDK module names required by these JARs
    */
-  private List<Path> filterNonModularJars(List<Path> jars) {
-    List<Path> nonModular = new ArrayList<>();
-    for (Path jar : jars) {
-      if (!isModularJar(jar)) {
-        nonModular.add(jar);
-      } else {
-        log.trace("Skipping modular JAR: {}", jar.getFileName());
+  private Set<String> extractModularJarDependencies(List<Path> modularJars) {
+    Set<String> jdkModules = new TreeSet<>();
+
+    for (Path jar : modularJars) {
+      try {
+        Set<String> deps = readModuleDescriptorRequires(jar);
+        for (String dep : deps) {
+          if (isJdkModule(dep)) {
+            if (availableJdkModules.contains(dep)) {
+              jdkModules.add(dep);
+              log.trace("{} requires JDK module: {}", jar.getFileName(), dep);
+            } else {
+              log.debug(
+                  "{} requires unavailable JDK module '{}' (removed in newer JDK), skipping",
+                  jar.getFileName(),
+                  dep);
+            }
+          }
+        }
+      } catch (IOException e) {
+        log.warn("Failed to read module-info from {}: {}", jar.getFileName(), e.getMessage());
       }
     }
-    return nonModular;
+
+    return jdkModules;
+  }
+
+  /**
+   * Reads the module descriptor from a JAR and returns all required module names.
+   *
+   * <p>Handles both regular modular JARs and multi-release JARs.
+   *
+   * @param jar the modular JAR file
+   * @return set of module names from requires directives
+   * @throws IOException if reading fails
+   */
+  private Set<String> readModuleDescriptorRequires(Path jar) throws IOException {
+    try (JarFile jarFile = new JarFile(jar.toFile())) {
+      // Try root level first
+      JarEntry entry = jarFile.getJarEntry("module-info.class");
+
+      // If not at root, find in versioned directory (prefer highest version)
+      if (entry == null) {
+        entry = findVersionedModuleInfo(jarFile);
+      }
+
+      if (entry == null) {
+        return Set.of();
+      }
+
+      try (InputStream is = jarFile.getInputStream(entry)) {
+        ModuleDescriptor descriptor = ModuleDescriptor.read(is);
+        return descriptor.requires().stream()
+            .map(ModuleDescriptor.Requires::name)
+            .collect(Collectors.toSet());
+      }
+    }
+  }
+
+  /**
+   * Finds the module-info.class entry in a multi-release JAR, preferring the highest version.
+   *
+   * @param jarFile the JAR file to search
+   * @return the module-info entry or null if not found
+   */
+  private JarEntry findVersionedModuleInfo(JarFile jarFile) {
+    return jarFile.stream()
+        .filter(
+            e ->
+                e.getName().startsWith("META-INF/versions/")
+                    && e.getName().endsWith("/module-info.class"))
+        .max(Comparator.comparingInt(this::extractVersion))
+        .orElse(null);
+  }
+
+  /**
+   * Extracts the version number from a versioned entry path.
+   *
+   * @param entry the JAR entry
+   * @return the version number, or 0 if not parseable
+   */
+  private int extractVersion(JarEntry entry) {
+    // Format: META-INF/versions/N/module-info.class
+    String name = entry.getName();
+    int start = "META-INF/versions/".length();
+    int end = name.indexOf('/', start);
+    if (end > start) {
+      try {
+        return Integer.parseInt(name.substring(start, end));
+      } catch (NumberFormatException e) {
+        return 0;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Checks if a module name is a JDK module (java.*, jdk.*, javafx.*, oracle.*).
+   *
+   * @param moduleName the module name to check
+   * @return true if this is a JDK module
+   */
+  private boolean isJdkModule(String moduleName) {
+    for (String prefix : JDK_MODULE_PREFIXES) {
+      if (moduleName.startsWith(prefix)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -157,36 +342,53 @@ public class JDepsAnalyzer {
   }
 
   /**
-   * Analyzes each non-modular JAR individually and returns a map of JAR to its required modules.
-   * Modular JARs are skipped and not included in the result.
+   * Analyzes each JAR individually and returns a map of JAR to its required JDK modules.
+   *
+   * <p>Non-modular JARs are analyzed with jdeps. Modular JARs have their JDK dependencies extracted
+   * from module-info.class.
    *
    * @param jars list of JAR files to analyze
-   * @return map of JAR path to its required modules (modular JARs excluded)
+   * @return map of JAR path to its required JDK modules
    */
   public Map<Path, Set<String>> analyzeRequiredModulesPerJar(List<Path> jars) {
     Map<Path, Set<String>> result = new LinkedHashMap<>();
-    List<Path> nonModularJars = filterNonModularJars(jars);
 
-    for (Path jar : nonModularJars) {
-      try {
-        // Pass single JAR as target, but include all JARs on classpath for resolution
-        List<String> args = buildArguments(List.of(jar), jars);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ByteArrayOutputStream err = new ByteArrayOutputStream();
-
-        int exitCode =
-            jdeps.run(new PrintStream(out), new PrintStream(err), args.toArray(new String[0]));
-
-        if (exitCode == 0) {
-          Set<String> modules = parseModuleOutput(out.toString().trim());
-          result.put(jar, modules);
-        } else {
-          log.warn("Failed to analyze {}: exit code {}", jar.getFileName(), exitCode);
+    for (Path jar : jars) {
+      if (isModularJar(jar)) {
+        // Modular JAR: extract JDK modules from module-info.class
+        try {
+          Set<String> allDeps = readModuleDescriptorRequires(jar);
+          Set<String> jdkDeps =
+              allDeps.stream()
+                  .filter(this::isJdkModule)
+                  .filter(availableJdkModules::contains) // Filter unavailable modules
+                  .collect(Collectors.toCollection(TreeSet::new));
+          result.put(jar, jdkDeps);
+        } catch (IOException e) {
+          log.warn("Failed to read module-info from {}: {}", jar.getFileName(), e.getMessage());
           result.put(jar, Set.of());
         }
-      } catch (Exception e) {
-        log.warn("Failed to analyze {}: {}", jar.getFileName(), e.getMessage());
-        result.put(jar, Set.of());
+      } else {
+        // Non-modular JAR: analyze with jdeps
+        try {
+          List<String> args = buildArguments(List.of(jar), jars);
+          ByteArrayOutputStream out = new ByteArrayOutputStream();
+          ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+          int exitCode =
+              jdeps.run(new PrintStream(out), new PrintStream(err), args.toArray(new String[0]));
+
+          if (exitCode == 0) {
+            Set<String> modules = parseModuleOutput(out.toString().trim());
+            result.put(jar, modules);
+          } else {
+            log.warn("Failed to analyze {}: exit code {}", jar.getFileName(), exitCode);
+            result.put(jar, Set.of());
+          }
+        } catch (Exception e) {
+          log.warn("Failed to analyze {}: {}", jar.getFileName(), e.getMessage());
+          result.put(jar, Set.of());
+        }
       }
     }
 
