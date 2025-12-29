@@ -132,12 +132,24 @@ public class JDepsAnalyzer {
   /**
    * Checks if a JAR is modular (contains module-info.class).
    *
+   * <p>Handles multi-release JARs by checking both root level and versioned directories.
+   *
    * @param jar the JAR file to check
-   * @return true if the JAR contains module-info.class
+   * @return true if the JAR contains module-info.class at root or in any versioned directory
    */
   private boolean isModularJar(Path jar) {
     try (JarFile jarFile = new JarFile(jar.toFile())) {
-      return jarFile.getEntry("module-info.class") != null;
+      // Check root level
+      if (jarFile.getEntry("module-info.class") != null) {
+        return true;
+      }
+      // Check multi-release versioned directories (9+)
+      // jdeps uses --multi-release so we must detect these as modular too
+      return jarFile.stream()
+          .anyMatch(
+              e ->
+                  e.getName().startsWith("META-INF/versions/")
+                      && e.getName().endsWith("/module-info.class"));
     } catch (IOException e) {
       log.warn("Failed to check if {} is modular: {}", jar.getFileName(), e.getMessage());
       return false; // Assume non-modular if we can't check
@@ -184,10 +196,15 @@ public class JDepsAnalyzer {
   /**
    * Builds the jdeps command-line arguments.
    *
+   * <p>IMPORTANT: Modular JARs must be excluded from the classpath as well as the target list.
+   * jdeps attempts to resolve module graphs when it sees modular JARs on the classpath, which fails
+   * if their dependencies aren't also present. We filter them out and only use non-modular JARs for
+   * class resolution context.
+   *
    * @param targetJars JARs to analyze (non-modular only)
-   * @param classpathJars all JARs to include on the classpath
+   * @param allJars all JARs available (used to filter non-modular for classpath)
    */
-  private List<String> buildArguments(List<Path> targetJars, List<Path> classpathJars) {
+  private List<String> buildArguments(List<Path> targetJars, List<Path> allJars) {
     List<String> args = new ArrayList<>();
 
     // Ignore missing dependencies (common for incomplete classpaths)
@@ -200,15 +217,18 @@ public class JDepsAnalyzer {
     args.add("--multi-release");
     args.add(String.valueOf(javaVersion));
 
-    // Build classpath from all JARs - this provides class resolution context
-    // for the non-modular JARs we're analyzing
-    String classpathStr =
-        classpathJars.stream()
-            .map(Path::toAbsolutePath)
-            .map(Path::toString)
-            .collect(Collectors.joining(System.getProperty("path.separator")));
-    args.add("-classpath");
-    args.add(classpathStr);
+    // Filter classpath to only include non-modular JARs
+    // jdeps fails when modular JARs are on classpath without their module dependencies
+    List<Path> nonModularClasspath = filterNonModularJars(allJars);
+    if (!nonModularClasspath.isEmpty()) {
+      String classpathStr =
+          nonModularClasspath.stream()
+              .map(Path::toAbsolutePath)
+              .map(Path::toString)
+              .collect(Collectors.joining(System.getProperty("path.separator")));
+      args.add("-classpath");
+      args.add(classpathStr);
+    }
 
     // Add only non-modular JARs as targets to analyze
     for (Path jar : targetJars) {
