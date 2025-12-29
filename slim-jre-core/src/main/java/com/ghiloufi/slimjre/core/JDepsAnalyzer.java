@@ -196,15 +196,14 @@ public class JDepsAnalyzer {
   /**
    * Builds the jdeps command-line arguments.
    *
-   * <p>IMPORTANT: Modular JARs must be excluded from the classpath as well as the target list.
-   * jdeps attempts to resolve module graphs when it sees modular JARs on the classpath, which fails
-   * if their dependencies aren't also present. We filter them out and only use non-modular JARs for
-   * class resolution context.
+   * <p>IMPORTANT: Only TARGET JARs need to be non-modular. Modular JARs on the classpath are fine -
+   * jdeps treats them as regular class files for resolution purposes. The module graph resolution
+   * only triggers when analyzing a modular JAR as a target.
    *
-   * @param targetJars JARs to analyze (non-modular only)
-   * @param allJars all JARs available (used to filter non-modular for classpath)
+   * @param targetJars JARs to analyze (must be non-modular only)
+   * @param classpathJars all JARs to include on the classpath (modular JARs are OK here)
    */
-  private List<String> buildArguments(List<Path> targetJars, List<Path> allJars) {
+  private List<String> buildArguments(List<Path> targetJars, List<Path> classpathJars) {
     List<String> args = new ArrayList<>();
 
     // Ignore missing dependencies (common for incomplete classpaths)
@@ -217,12 +216,11 @@ public class JDepsAnalyzer {
     args.add("--multi-release");
     args.add(String.valueOf(javaVersion));
 
-    // Filter classpath to only include non-modular JARs
-    // jdeps fails when modular JARs are on classpath without their module dependencies
-    List<Path> nonModularClasspath = filterNonModularJars(allJars);
-    if (!nonModularClasspath.isEmpty()) {
+    // Include ALL JARs on classpath - modular JARs are fine here for class resolution
+    // jdeps only fails when modular JARs are analysis TARGETS, not on classpath
+    if (!classpathJars.isEmpty()) {
       String classpathStr =
-          nonModularClasspath.stream()
+          classpathJars.stream()
               .map(Path::toAbsolutePath)
               .map(Path::toString)
               .collect(Collectors.joining(System.getProperty("path.separator")));
