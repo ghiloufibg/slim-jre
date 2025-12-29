@@ -2,9 +2,11 @@ package com.ghiloufi.slimjre.core;
 
 import com.ghiloufi.slimjre.exception.JDepsException;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.jar.JarFile;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -55,7 +57,9 @@ public class JDepsAnalyzer {
   }
 
   /**
-   * Analyzes multiple JARs and merges their required modules.
+   * Analyzes multiple JARs and merges their required modules. Modular JARs (those containing
+   * module-info.class) are filtered out since jdeps requires all module dependencies to be present
+   * on the module-path, which is impractical for mixed modular/non-modular classpaths.
    *
    * @param jars list of JAR files to analyze
    * @return set of required JDK module names
@@ -66,9 +70,20 @@ public class JDepsAnalyzer {
       throw new JDepsException("At least one JAR file must be specified");
     }
 
-    log.debug("Analyzing {} JAR(s) for module dependencies", jars.size());
+    // Filter out modular JARs - jdeps fails on modular JARs when module dependencies
+    // aren't all present on the module-path
+    List<Path> nonModularJars = filterNonModularJars(jars);
+    if (nonModularJars.isEmpty()) {
+      log.warn("All {} JAR(s) are modular, defaulting to java.base", jars.size());
+      return Set.of("java.base");
+    }
 
-    List<String> args = buildArguments(jars);
+    log.debug(
+        "Analyzing {} non-modular JAR(s) for module dependencies (filtered {} modular JARs)",
+        nonModularJars.size(),
+        jars.size() - nonModularJars.size());
+
+    List<String> args = buildArguments(nonModularJars, jars);
     log.trace("jdeps arguments: {}", args);
 
     ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -97,19 +112,67 @@ public class JDepsAnalyzer {
   }
 
   /**
-   * Analyzes each JAR individually and returns a map of JAR to its required modules.
+   * Filters out modular JARs (those containing module-info.class).
+   *
+   * @param jars list of JAR files
+   * @return list of non-modular JARs
+   */
+  private List<Path> filterNonModularJars(List<Path> jars) {
+    List<Path> nonModular = new ArrayList<>();
+    for (Path jar : jars) {
+      if (!isModularJar(jar)) {
+        nonModular.add(jar);
+      } else {
+        log.trace("Skipping modular JAR: {}", jar.getFileName());
+      }
+    }
+    return nonModular;
+  }
+
+  /**
+   * Checks if a JAR is modular (contains module-info.class).
+   *
+   * @param jar the JAR file to check
+   * @return true if the JAR contains module-info.class
+   */
+  private boolean isModularJar(Path jar) {
+    try (JarFile jarFile = new JarFile(jar.toFile())) {
+      return jarFile.getEntry("module-info.class") != null;
+    } catch (IOException e) {
+      log.warn("Failed to check if {} is modular: {}", jar.getFileName(), e.getMessage());
+      return false; // Assume non-modular if we can't check
+    }
+  }
+
+  /**
+   * Analyzes each non-modular JAR individually and returns a map of JAR to its required modules.
+   * Modular JARs are skipped and not included in the result.
    *
    * @param jars list of JAR files to analyze
-   * @return map of JAR path to its required modules
+   * @return map of JAR path to its required modules (modular JARs excluded)
    */
   public Map<Path, Set<String>> analyzeRequiredModulesPerJar(List<Path> jars) {
     Map<Path, Set<String>> result = new LinkedHashMap<>();
+    List<Path> nonModularJars = filterNonModularJars(jars);
 
-    for (Path jar : jars) {
+    for (Path jar : nonModularJars) {
       try {
-        Set<String> modules = analyzeRequiredModules(List.of(jar));
-        result.put(jar, modules);
-      } catch (JDepsException e) {
+        // Pass single JAR as target, but include all JARs on classpath for resolution
+        List<String> args = buildArguments(List.of(jar), jars);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int exitCode =
+            jdeps.run(new PrintStream(out), new PrintStream(err), args.toArray(new String[0]));
+
+        if (exitCode == 0) {
+          Set<String> modules = parseModuleOutput(out.toString().trim());
+          result.put(jar, modules);
+        } else {
+          log.warn("Failed to analyze {}: exit code {}", jar.getFileName(), exitCode);
+          result.put(jar, Set.of());
+        }
+      } catch (Exception e) {
         log.warn("Failed to analyze {}: {}", jar.getFileName(), e.getMessage());
         result.put(jar, Set.of());
       }
@@ -118,8 +181,13 @@ public class JDepsAnalyzer {
     return result;
   }
 
-  /** Builds the jdeps command-line arguments. */
-  private List<String> buildArguments(List<Path> jars) {
+  /**
+   * Builds the jdeps command-line arguments.
+   *
+   * @param targetJars JARs to analyze (non-modular only)
+   * @param classpathJars all JARs to include on the classpath
+   */
+  private List<String> buildArguments(List<Path> targetJars, List<Path> classpathJars) {
     List<String> args = new ArrayList<>();
 
     // Ignore missing dependencies (common for incomplete classpaths)
@@ -132,18 +200,18 @@ public class JDepsAnalyzer {
     args.add("--multi-release");
     args.add(String.valueOf(javaVersion));
 
-    // Build classpath from all JARs
-    if (jars.size() > 1) {
-      args.add("-classpath");
-      args.add(
-          jars.stream()
-              .map(Path::toAbsolutePath)
-              .map(Path::toString)
-              .collect(Collectors.joining(System.getProperty("path.separator"))));
-    }
+    // Build classpath from all JARs - this provides class resolution context
+    // for the non-modular JARs we're analyzing
+    String classpathStr =
+        classpathJars.stream()
+            .map(Path::toAbsolutePath)
+            .map(Path::toString)
+            .collect(Collectors.joining(System.getProperty("path.separator")));
+    args.add("-classpath");
+    args.add(classpathStr);
 
-    // Add main JAR(s) to analyze
-    for (Path jar : jars) {
+    // Add only non-modular JARs as targets to analyze
+    for (Path jar : targetJars) {
       args.add(jar.toAbsolutePath().toString());
     }
 

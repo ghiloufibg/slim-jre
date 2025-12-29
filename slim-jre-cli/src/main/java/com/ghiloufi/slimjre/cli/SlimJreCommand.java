@@ -3,6 +3,8 @@ package com.ghiloufi.slimjre.cli;
 import com.ghiloufi.slimjre.config.AnalysisResult;
 import com.ghiloufi.slimjre.config.Result;
 import com.ghiloufi.slimjre.config.SlimJreConfig;
+import com.ghiloufi.slimjre.core.DiscoveryResult;
+import com.ghiloufi.slimjre.core.JarDiscovery;
 import com.ghiloufi.slimjre.core.SlimJre;
 import com.ghiloufi.slimjre.exception.SlimJreException;
 import java.io.IOException;
@@ -96,19 +98,41 @@ public class SlimJreCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
+    DiscoveryResult discoveryResult = null;
+
     try {
-      // Collect JARs from input
-      List<Path> jars = collectJars(input);
+      // Use JarDiscovery for comprehensive JAR discovery
+      // Supports: directories, fat JARs (Spring Boot), WARs, MANIFEST Class-Path
+      JarDiscovery jarDiscovery = new JarDiscovery();
+      discoveryResult = jarDiscovery.discover(input);
+
+      List<Path> jars = new ArrayList<>(discoveryResult.jarList());
 
       if (jars.isEmpty()) {
         System.err.println("Error: No JAR files found in " + input);
         return 1;
       }
 
+      // Log discovery details
+      if (discoveryResult.hasNestedJars()) {
+        System.out.println("Discovered " + jars.size() + " JAR(s) from " + input);
+        if (discoveryResult.tempDirectory() != null) {
+          System.out.println("  (extracted nested JARs to temp directory)");
+        }
+      }
+
+      if (discoveryResult.hasWarnings()) {
+        for (String warning : discoveryResult.warnings()) {
+          System.err.println("Warning: " + warning);
+        }
+      }
+
       // Add classpath JARs if specified
       if (classpath != null) {
         for (Path cpEntry : classpath) {
-          jars.addAll(collectJars(cpEntry));
+          DiscoveryResult cpDiscovery = jarDiscovery.discover(cpEntry);
+          jars.addAll(cpDiscovery.jarList());
+          // Note: cpDiscovery temp dirs will be cleaned up with discoveryResult
         }
       }
 
@@ -169,6 +193,11 @@ public class SlimJreCommand implements Callable<Integer> {
         e.printStackTrace(System.err);
       }
       return 1;
+    } finally {
+      // Clean up temp directory from nested JAR extraction
+      if (discoveryResult != null) {
+        discoveryResult.close();
+      }
     }
   }
 
