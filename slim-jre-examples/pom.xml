@@ -25,6 +25,6 @@
         <module>quarkus-hello</module>
         <module>micronaut-hello</module>
         <module>microprofile-hello</module>
-        
+        <module>locale-app</module>
     </modules>
 </project>
