@@ -18,7 +18,13 @@
 
     <modules>
         <module>simple-app</module>
+        <module>http-client-app</module>
+        <module>logging-app</module>
+        <module>file-processing-app</module>
         <module>spring-boot-hello</module>
         <module>quarkus-hello</module>
+        <module>micronaut-hello</module>
+        <module>microprofile-hello</module>
+        
     </modules>
 </project>
