@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
  * @param apiUsageModules Modules required by JDK API usage patterns
  * @param graalVmMetadataModules Modules required by GraalVM native-image metadata
  * @param cryptoModules Modules required for SSL/TLS and cryptographic operations
+ * @param localeModules Modules required for non-English locale support (jdk.localedata)
  * @param allModules Combined set of all required modules
  * @param perJarModules Breakdown of modules required by each JAR
  */
@@ -25,11 +26,13 @@ public record AnalysisResult(
     Set<String> apiUsageModules,
     Set<String> graalVmMetadataModules,
     Set<String> cryptoModules,
+    Set<String> localeModules,
     Set<String> allModules,
     Map<Path, Set<String>> perJarModules) {
 
   /**
-   * Creates an AnalysisResult without GraalVM metadata and crypto modules (backward compatibility).
+   * Creates an AnalysisResult without GraalVM metadata, crypto, and locale modules (backward
+   * compatibility).
    */
   public AnalysisResult(
       Set<String> requiredModules,
@@ -45,6 +48,7 @@ public record AnalysisResult(
         apiUsageModules,
         Set.of(),
         Set.of(),
+        Set.of(),
         allModules,
         perJarModules);
   }
@@ -57,6 +61,7 @@ public record AnalysisResult(
     apiUsageModules = Set.copyOf(apiUsageModules);
     graalVmMetadataModules = Set.copyOf(graalVmMetadataModules);
     cryptoModules = Set.copyOf(cryptoModules);
+    localeModules = Set.copyOf(localeModules);
     allModules = Set.copyOf(allModules);
     perJarModules = Map.copyOf(perJarModules);
   }
@@ -75,6 +80,7 @@ public record AnalysisResult(
         .append(formatModules(graalVmMetadataModules))
         .append("\n");
     sb.append("  Crypto modules (SSL/TLS): ").append(formatModules(cryptoModules)).append("\n");
+    sb.append("  Locale modules (i18n): ").append(formatModules(localeModules)).append("\n");
     sb.append("  Total modules: ").append(allModules.size()).append("\n");
 
     if (!perJarModules.isEmpty()) {

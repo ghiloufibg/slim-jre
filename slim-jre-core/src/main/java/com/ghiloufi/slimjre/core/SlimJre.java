@@ -48,6 +48,7 @@ public class SlimJre {
   private final ApiUsageScanner apiUsageScanner;
   private final GraalVmMetadataScanner graalVmMetadataScanner;
   private final CryptoModuleScanner cryptoModuleScanner;
+  private final LocaleModuleScanner localeModuleScanner;
   private final ModuleResolver moduleResolver;
   private final JLinkExecutor jlinkExecutor;
 
@@ -59,6 +60,7 @@ public class SlimJre {
     this.apiUsageScanner = new ApiUsageScanner();
     this.graalVmMetadataScanner = new GraalVmMetadataScanner();
     this.cryptoModuleScanner = new CryptoModuleScanner();
+    this.localeModuleScanner = new LocaleModuleScanner();
     this.moduleResolver = new ModuleResolver();
     this.jlinkExecutor = new JLinkExecutor();
   }
@@ -71,6 +73,7 @@ public class SlimJre {
       ApiUsageScanner apiUsageScanner,
       GraalVmMetadataScanner graalVmMetadataScanner,
       CryptoModuleScanner cryptoModuleScanner,
+      LocaleModuleScanner localeModuleScanner,
       ModuleResolver moduleResolver,
       JLinkExecutor jlinkExecutor) {
     this.jdepsAnalyzer = Objects.requireNonNull(jdepsAnalyzer);
@@ -79,6 +82,7 @@ public class SlimJre {
     this.apiUsageScanner = Objects.requireNonNull(apiUsageScanner);
     this.graalVmMetadataScanner = Objects.requireNonNull(graalVmMetadataScanner);
     this.cryptoModuleScanner = Objects.requireNonNull(cryptoModuleScanner);
+    this.localeModuleScanner = Objects.requireNonNull(localeModuleScanner);
     this.moduleResolver = Objects.requireNonNull(moduleResolver);
     this.jlinkExecutor = Objects.requireNonNull(jlinkExecutor);
   }
@@ -109,6 +113,8 @@ public class SlimJre {
     Set<String> apiUsageModules;
     Set<String> graalVmModules;
     Set<String> cryptoModules;
+    Set<String> localeModules;
+    LocaleDetectionResult localeResult;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       // Submit all analysis tasks in parallel
@@ -134,6 +140,9 @@ public class SlimJre {
 
       Future<CryptoDetectionResult> cryptoFuture =
           executor.submit(() -> cryptoModuleScanner.scanJarsParallel(config.jars()));
+
+      Future<LocaleDetectionResult> localeFuture =
+          executor.submit(() -> localeModuleScanner.scanJarsParallel(config.jars()));
 
       // Collect results
       try {
@@ -182,6 +191,18 @@ public class SlimJre {
               formatModules(cryptoModules),
               String.join(", ", cryptoResult.detectedInJars()));
         }
+
+        localeResult = localeFuture.get();
+        localeModules = localeResult.requiredModules();
+        if (localeResult.confidence() == LocaleConfidence.DEFINITE) {
+          log.info(
+              "Locale detection: Non-English locale(s) detected, adding jdk.localedata ({})",
+              String.join(", ", localeResult.tier1Patterns()));
+        } else if (localeResult.confidence() == LocaleConfidence.STRONG) {
+          log.info(
+              "Locale detection: i18n APIs detected ({}). Consider --add-modules jdk.localedata",
+              String.join(", ", localeResult.tier2Patterns()));
+        }
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
       }
@@ -194,6 +215,7 @@ public class SlimJre {
     allModules.addAll(reflectionModules);
     allModules.addAll(apiUsageModules);
     allModules.addAll(graalVmModules);
+    allModules.addAll(localeModules);
 
     // Handle crypto modules based on cryptoMode
     switch (config.cryptoMode()) {
@@ -305,6 +327,7 @@ public class SlimJre {
     Set<String> apiUsageModules;
     Set<String> graalVmModules;
     Set<String> cryptoModules;
+    Set<String> localeModules;
     Map<Path, Set<String>> perJarModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -325,6 +348,8 @@ public class SlimJre {
               : null;
       Future<CryptoDetectionResult> cryptoFuture =
           executor.submit(() -> cryptoModuleScanner.scanJarsParallel(jars));
+      Future<LocaleDetectionResult> localeFuture =
+          executor.submit(() -> localeModuleScanner.scanJarsParallel(jars));
       Future<Map<Path, Set<String>>> perJarFuture =
           executor.submit(() -> jdepsAnalyzer.analyzeRequiredModulesPerJar(jars));
 
@@ -336,6 +361,7 @@ public class SlimJre {
         apiUsageModules = apiUsageFuture.get();
         graalVmModules = graalVmFuture != null ? graalVmFuture.get() : Set.of();
         cryptoModules = cryptoFuture.get().requiredModules();
+        localeModules = localeFuture.get().requiredModules();
         perJarModules = perJarFuture.get();
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
@@ -350,6 +376,7 @@ public class SlimJre {
     allModules.addAll(apiUsageModules);
     allModules.addAll(graalVmModules);
     allModules.addAll(cryptoModules);
+    allModules.addAll(localeModules);
 
     return new AnalysisResult(
         jdepsModules,
@@ -358,6 +385,7 @@ public class SlimJre {
         apiUsageModules,
         graalVmModules,
         cryptoModules,
+        localeModules,
         allModules,
         perJarModules);
   }
