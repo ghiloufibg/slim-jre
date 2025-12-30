@@ -47,6 +47,7 @@ public class SlimJre {
   private final ReflectionBytecodeScanner reflectionScanner;
   private final ApiUsageScanner apiUsageScanner;
   private final GraalVmMetadataScanner graalVmMetadataScanner;
+  private final CryptoModuleScanner cryptoModuleScanner;
   private final ModuleResolver moduleResolver;
   private final JLinkExecutor jlinkExecutor;
 
@@ -57,6 +58,7 @@ public class SlimJre {
     this.reflectionScanner = new ReflectionBytecodeScanner();
     this.apiUsageScanner = new ApiUsageScanner();
     this.graalVmMetadataScanner = new GraalVmMetadataScanner();
+    this.cryptoModuleScanner = new CryptoModuleScanner();
     this.moduleResolver = new ModuleResolver();
     this.jlinkExecutor = new JLinkExecutor();
   }
@@ -68,6 +70,7 @@ public class SlimJre {
       ReflectionBytecodeScanner reflectionScanner,
       ApiUsageScanner apiUsageScanner,
       GraalVmMetadataScanner graalVmMetadataScanner,
+      CryptoModuleScanner cryptoModuleScanner,
       ModuleResolver moduleResolver,
       JLinkExecutor jlinkExecutor) {
     this.jdepsAnalyzer = Objects.requireNonNull(jdepsAnalyzer);
@@ -75,6 +78,7 @@ public class SlimJre {
     this.reflectionScanner = Objects.requireNonNull(reflectionScanner);
     this.apiUsageScanner = Objects.requireNonNull(apiUsageScanner);
     this.graalVmMetadataScanner = Objects.requireNonNull(graalVmMetadataScanner);
+    this.cryptoModuleScanner = Objects.requireNonNull(cryptoModuleScanner);
     this.moduleResolver = Objects.requireNonNull(moduleResolver);
     this.jlinkExecutor = Objects.requireNonNull(jlinkExecutor);
   }
@@ -104,6 +108,7 @@ public class SlimJre {
     Set<String> reflectionModules;
     Set<String> apiUsageModules;
     Set<String> graalVmModules;
+    Set<String> cryptoModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       // Submit all analysis tasks in parallel
@@ -126,6 +131,9 @@ public class SlimJre {
           config.scanGraalVmMetadata()
               ? executor.submit(() -> graalVmMetadataScanner.scanJarsParallel(config.jars()))
               : null;
+
+      Future<CryptoDetectionResult> cryptoFuture =
+          executor.submit(() -> cryptoModuleScanner.scanJarsParallel(config.jars()));
 
       // Collect results
       try {
@@ -164,6 +172,16 @@ public class SlimJre {
               graalVmModules.size(),
               formatModules(graalVmModules));
         }
+
+        CryptoDetectionResult cryptoResult = cryptoFuture.get();
+        cryptoModules = cryptoResult.requiredModules();
+        if (!cryptoModules.isEmpty()) {
+          log.info(
+              "Crypto detection requires {} module(s): {} (detected in: {})",
+              cryptoModules.size(),
+              formatModules(cryptoModules),
+              String.join(", ", cryptoResult.detectedInJars()));
+        }
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
       }
@@ -176,6 +194,29 @@ public class SlimJre {
     allModules.addAll(reflectionModules);
     allModules.addAll(apiUsageModules);
     allModules.addAll(graalVmModules);
+
+    // Handle crypto modules based on cryptoMode
+    switch (config.cryptoMode()) {
+      case ALWAYS -> {
+        allModules.add("jdk.crypto.ec");
+        log.info("Crypto mode ALWAYS: forcing jdk.crypto.ec inclusion");
+      }
+      case AUTO -> {
+        if (!cryptoModules.isEmpty()) {
+          allModules.addAll(cryptoModules);
+          log.debug("Crypto mode AUTO: including detected crypto modules");
+        }
+      }
+      case NEVER -> {
+        if (!cryptoModules.isEmpty()) {
+          log.warn(
+              "Crypto mode NEVER: excluding {} detected crypto module(s). "
+                  + "HTTPS/TLS connections may fail at runtime!",
+              cryptoModules.size());
+        }
+      }
+    }
+
     allModules.addAll(config.additionalModules());
 
     // Remove excluded modules
@@ -263,6 +304,7 @@ public class SlimJre {
     Set<String> reflectionModules;
     Set<String> apiUsageModules;
     Set<String> graalVmModules;
+    Set<String> cryptoModules;
     Map<Path, Set<String>> perJarModules;
 
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -281,6 +323,8 @@ public class SlimJre {
           scanGraalVmMetadata
               ? executor.submit(() -> graalVmMetadataScanner.scanJarsParallel(jars))
               : null;
+      Future<CryptoDetectionResult> cryptoFuture =
+          executor.submit(() -> cryptoModuleScanner.scanJarsParallel(jars));
       Future<Map<Path, Set<String>>> perJarFuture =
           executor.submit(() -> jdepsAnalyzer.analyzeRequiredModulesPerJar(jars));
 
@@ -291,6 +335,7 @@ public class SlimJre {
         reflectionModules = reflectionFuture.get();
         apiUsageModules = apiUsageFuture.get();
         graalVmModules = graalVmFuture != null ? graalVmFuture.get() : Set.of();
+        cryptoModules = cryptoFuture.get().requiredModules();
         perJarModules = perJarFuture.get();
       } catch (Exception e) {
         throw new SlimJreException("Parallel analysis failed: " + e.getMessage(), e);
@@ -304,6 +349,7 @@ public class SlimJre {
     allModules.addAll(reflectionModules);
     allModules.addAll(apiUsageModules);
     allModules.addAll(graalVmModules);
+    allModules.addAll(cryptoModules);
 
     return new AnalysisResult(
         jdepsModules,
@@ -311,6 +357,7 @@ public class SlimJre {
         reflectionModules,
         apiUsageModules,
         graalVmModules,
+        cryptoModules,
         allModules,
         perJarModules);
   }

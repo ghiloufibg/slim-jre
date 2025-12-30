@@ -98,7 +98,18 @@ class SlimJreConfigTest {
 
     SlimJreConfig config =
         new SlimJreConfig(
-            List.of(jar), null, Set.of(), Set.of(), true, "zip-6", true, true, true, true, false);
+            List.of(jar),
+            null,
+            Set.of(),
+            Set.of(),
+            true,
+            "zip-6",
+            true,
+            true,
+            true,
+            true,
+            CryptoMode.AUTO,
+            false);
 
     assertThatThrownBy(config::validate)
         .isInstanceOf(ConfigurationException.class)
@@ -157,6 +168,7 @@ class SlimJreConfigTest {
             true,
             true,
             true,
+            CryptoMode.AUTO,
             false);
 
     // Modify original collections

@@ -1,6 +1,7 @@
 package com.ghiloufi.slimjre.cli;
 
 import com.ghiloufi.slimjre.config.AnalysisResult;
+import com.ghiloufi.slimjre.config.CryptoMode;
 import com.ghiloufi.slimjre.config.Result;
 import com.ghiloufi.slimjre.config.SlimJreConfig;
 import com.ghiloufi.slimjre.core.DiscoveryResult;
@@ -87,6 +88,15 @@ public class SlimJreCommand implements Callable<Integer> {
   private boolean noGraalVmMetadata;
 
   @Option(
+      names = {"--crypto"},
+      description =
+          "Crypto module handling: AUTO (detect and include if needed), "
+              + "ALWAYS (always include for safety), NEVER (never include, HTTP-only apps). "
+              + "Default: ${DEFAULT-VALUE}",
+      defaultValue = "AUTO")
+  private CryptoMode cryptoMode;
+
+  @Option(
       names = {"--analyze-only"},
       description = "Only print required modules, don't create JRE")
   private boolean analyzeOnly;
@@ -162,6 +172,7 @@ public class SlimJreCommand implements Callable<Integer> {
               .compression(compression)
               .scanServiceLoaders(!noServiceScan)
               .scanGraalVmMetadata(!noGraalVmMetadata)
+              .cryptoMode(cryptoMode)
               .verbose(verbose);
 
       if (addModules != null) {
@@ -249,6 +260,12 @@ public class SlimJreCommand implements Callable<Integer> {
       System.out.println();
       System.out.println("GraalVM Metadata Modules:");
       printModuleSet(analysis.graalVmMetadataModules(), "  ");
+    }
+
+    if (!analysis.cryptoModules().isEmpty()) {
+      System.out.println();
+      System.out.println("Crypto Modules (SSL/TLS):");
+      printModuleSet(analysis.cryptoModules(), "  ");
     }
 
     System.out.println();

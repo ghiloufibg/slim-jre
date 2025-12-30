@@ -21,6 +21,7 @@ import java.util.Set;
  * @param noManPages Whether to exclude man pages (default: true)
  * @param scanServiceLoaders Whether to scan META-INF/services (default: true)
  * @param scanGraalVmMetadata Whether to scan GraalVM native-image metadata (default: true)
+ * @param cryptoMode How to handle SSL/TLS crypto module detection (default: AUTO)
  * @param verbose Whether to output verbose logging (default: false)
  */
 public record SlimJreConfig(
@@ -34,6 +35,7 @@ public record SlimJreConfig(
     boolean noManPages,
     boolean scanServiceLoaders,
     boolean scanGraalVmMetadata,
+    CryptoMode cryptoMode,
     boolean verbose) {
   public SlimJreConfig {
     // Defensive copies
@@ -104,6 +106,7 @@ public record SlimJreConfig(
     private boolean noManPages = true;
     private boolean scanServiceLoaders = true;
     private boolean scanGraalVmMetadata = true;
+    private CryptoMode cryptoMode = CryptoMode.AUTO;
     private boolean verbose = false;
 
     /** Adds a JAR file to analyze. */
@@ -184,6 +187,12 @@ public record SlimJreConfig(
       return this;
     }
 
+    /** Sets the crypto module handling mode. */
+    public Builder cryptoMode(CryptoMode cryptoMode) {
+      this.cryptoMode = cryptoMode;
+      return this;
+    }
+
     /** Sets verbose output mode. */
     public Builder verbose(boolean verbose) {
       this.verbose = verbose;
@@ -203,6 +212,7 @@ public record SlimJreConfig(
           noManPages,
           scanServiceLoaders,
           scanGraalVmMetadata,
+          cryptoMode,
           verbose);
     }
   }
