@@ -26,5 +26,7 @@
         <module>micronaut-hello</module>
         <module>microprofile-hello</module>
         <module>locale-app</module>
+        <module>zipfs-app</module>
+        <module>jmx-app</module>
     </modules>
 </project>

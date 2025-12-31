@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
  * @param graalVmMetadataModules Modules required by GraalVM native-image metadata
  * @param cryptoModules Modules required for SSL/TLS and cryptographic operations
  * @param localeModules Modules required for non-English locale support (jdk.localedata)
+ * @param zipFsModules Modules required for ZIP filesystem operations (jdk.zipfs)
+ * @param jmxModules Modules required for remote JMX management (java.management.rmi)
  * @param allModules Combined set of all required modules
  * @param perJarModules Breakdown of modules required by each JAR
  */
@@ -27,12 +29,14 @@ public record AnalysisResult(
     Set<String> graalVmMetadataModules,
     Set<String> cryptoModules,
     Set<String> localeModules,
+    Set<String> zipFsModules,
+    Set<String> jmxModules,
     Set<String> allModules,
     Map<Path, Set<String>> perJarModules) {
 
   /**
-   * Creates an AnalysisResult without GraalVM metadata, crypto, and locale modules (backward
-   * compatibility).
+   * Creates an AnalysisResult without GraalVM metadata, crypto, locale, zipFs, and jmx modules
+   * (backward compatibility).
    */
   public AnalysisResult(
       Set<String> requiredModules,
@@ -49,6 +53,8 @@ public record AnalysisResult(
         Set.of(),
         Set.of(),
         Set.of(),
+        Set.of(),
+        Set.of(),
         allModules,
         perJarModules);
   }
@@ -62,6 +68,8 @@ public record AnalysisResult(
     graalVmMetadataModules = Set.copyOf(graalVmMetadataModules);
     cryptoModules = Set.copyOf(cryptoModules);
     localeModules = Set.copyOf(localeModules);
+    zipFsModules = Set.copyOf(zipFsModules);
+    jmxModules = Set.copyOf(jmxModules);
     allModules = Set.copyOf(allModules);
     perJarModules = Map.copyOf(perJarModules);
   }
@@ -81,6 +89,10 @@ public record AnalysisResult(
         .append("\n");
     sb.append("  Crypto modules (SSL/TLS): ").append(formatModules(cryptoModules)).append("\n");
     sb.append("  Locale modules (i18n): ").append(formatModules(localeModules)).append("\n");
+    sb.append("  ZipFS modules (ZIP filesystem): ")
+        .append(formatModules(zipFsModules))
+        .append("\n");
+    sb.append("  JMX modules (remote management): ").append(formatModules(jmxModules)).append("\n");
     sb.append("  Total modules: ").append(allModules.size()).append("\n");
 
     if (!perJarModules.isEmpty()) {
