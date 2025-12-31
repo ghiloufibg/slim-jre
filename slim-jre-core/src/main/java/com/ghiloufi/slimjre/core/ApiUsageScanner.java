@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.core;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -187,8 +188,9 @@ public class ApiUsageScanner {
       while (entries.hasMoreElements()) {
         JarEntry entry = entries.nextElement();
         if (entry.getName().endsWith(".class") && !entry.isDirectory()) {
-          try (InputStream is = jar.getInputStream(entry)) {
-            detectedModules.addAll(scanClass(is));
+          try (InputStream is = jar.getInputStream(entry);
+              BufferedInputStream bis = new BufferedInputStream(is, 8192)) {
+            detectedModules.addAll(scanClass(bis));
           } catch (IOException e) {
             log.trace("Failed to scan class {}: {}", entry.getName(), e.getMessage());
           }

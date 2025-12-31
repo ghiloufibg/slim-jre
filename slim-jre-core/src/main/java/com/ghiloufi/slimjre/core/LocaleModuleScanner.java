@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.core;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -300,8 +301,9 @@ public class LocaleModuleScanner {
               || entry.getName().endsWith("/module-info.class")) {
             continue;
           }
-          try (InputStream is = jar.getInputStream(entry)) {
-            ClassScanResult classResult = scanClass(is);
+          try (InputStream is = jar.getInputStream(entry);
+              BufferedInputStream bis = new BufferedInputStream(is, 8192)) {
+            ClassScanResult classResult = scanClass(bis);
             tier1.addAll(classResult.tier1);
             tier2.addAll(classResult.tier2);
             tier3.addAll(classResult.tier3);

@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.core;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -166,8 +167,9 @@ public class ZipFsModuleScanner {
               || entry.getName().endsWith("/module-info.class")) {
             continue;
           }
-          try (InputStream is = jar.getInputStream(entry)) {
-            detectedPatterns.addAll(scanClass(is));
+          try (InputStream is = jar.getInputStream(entry);
+              BufferedInputStream bis = new BufferedInputStream(is, 8192)) {
+            detectedPatterns.addAll(scanClass(bis));
           } catch (IOException e) {
             log.trace("Failed to scan class {}: {}", entry.getName(), e.getMessage());
           }

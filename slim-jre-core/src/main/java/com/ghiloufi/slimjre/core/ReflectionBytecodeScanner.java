@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.core;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.ModuleFinder;
@@ -86,13 +87,29 @@ public class ReflectionBytecodeScanner {
   private static final String FIND_CLASS_NAME = "findClass";
   private static final String FIND_CLASS_DESC = "(Ljava/lang/String;)Ljava/lang/Class;";
 
-  /** Cache mapping class names to their containing module */
-  private final Map<String, String> classToModuleCache;
+  /** Static cache mapping class names to their containing module (shared across all instances) */
+  private static volatile Map<String, String> classToModuleCache;
 
-  /** Creates a new ReflectionBytecodeScanner and initializes the class-to-module cache. */
+  /** Creates a new ReflectionBytecodeScanner. */
   public ReflectionBytecodeScanner() {
-    this.classToModuleCache = buildClassToModuleCache();
-    log.debug("Initialized class-to-module cache with {} entries", classToModuleCache.size());
+    // Ensure cache is initialized (lazy, thread-safe singleton)
+    getClassToModuleCache();
+  }
+
+  /**
+   * Returns the shared class-to-module cache, initializing it lazily if needed. Uses double-checked
+   * locking for thread safety with minimal synchronization overhead.
+   */
+  private static Map<String, String> getClassToModuleCache() {
+    if (classToModuleCache == null) {
+      synchronized (ReflectionBytecodeScanner.class) {
+        if (classToModuleCache == null) {
+          classToModuleCache = buildClassToModuleCache();
+          log.debug("Initialized class-to-module cache with {} entries", classToModuleCache.size());
+        }
+      }
+    }
+    return classToModuleCache;
   }
 
   /**
@@ -116,8 +133,9 @@ public class ReflectionBytecodeScanner {
       while (entries.hasMoreElements()) {
         JarEntry entry = entries.nextElement();
         if (entry.getName().endsWith(".class") && !entry.isDirectory()) {
-          try (InputStream is = jar.getInputStream(entry)) {
-            reflectedClasses.addAll(scanClass(is));
+          try (InputStream is = jar.getInputStream(entry);
+              BufferedInputStream bis = new BufferedInputStream(is, 8192)) {
+            reflectedClasses.addAll(scanClass(bis));
           } catch (IOException e) {
             log.trace("Failed to scan class {}: {}", entry.getName(), e.getMessage());
           }
@@ -154,8 +172,9 @@ public class ReflectionBytecodeScanner {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
               if (file.toString().endsWith(".class")) {
-                try (InputStream is = Files.newInputStream(file)) {
-                  reflectedClasses.addAll(scanClass(is));
+                try (InputStream is = Files.newInputStream(file);
+                    BufferedInputStream bis = new BufferedInputStream(is, 8192)) {
+                  reflectedClasses.addAll(scanClass(bis));
                 } catch (IOException e) {
                   log.trace("Failed to scan class {}: {}", file, e.getMessage());
                 }
@@ -235,9 +254,10 @@ public class ReflectionBytecodeScanner {
    */
   Set<String> mapClassesToModules(Set<String> classNames) {
     Set<String> modules = new TreeSet<>();
+    Map<String, String> cache = getClassToModuleCache();
 
     for (String className : classNames) {
-      String moduleName = classToModuleCache.get(className);
+      String moduleName = cache.get(className);
       if (moduleName != null) {
         modules.add(moduleName);
         log.debug("Mapped reflected class {} to module {}", className, moduleName);
@@ -252,7 +272,7 @@ public class ReflectionBytecodeScanner {
   /**
    * Builds a cache mapping JDK class names to their containing modules using the ModuleFinder API.
    */
-  private Map<String, String> buildClassToModuleCache() {
+  private static Map<String, String> buildClassToModuleCache() {
     Map<String, String> cache = new HashMap<>();
     ModuleFinder finder = ModuleFinder.ofSystem();
 
@@ -413,6 +433,6 @@ public class ReflectionBytecodeScanner {
    * @return Optional containing the module name, or empty if not found
    */
   public Optional<String> getModuleForClass(String className) {
-    return Optional.ofNullable(classToModuleCache.get(className));
+    return Optional.ofNullable(getClassToModuleCache().get(className));
   }
 }
