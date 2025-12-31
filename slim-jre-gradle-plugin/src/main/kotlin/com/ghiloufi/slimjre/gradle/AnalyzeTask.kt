@@ -32,6 +32,9 @@ abstract class AnalyzeTask : DefaultTask() {
     abstract val scanServiceLoaders: Property<Boolean>
 
     @get:Input
+    abstract val scanGraalVmMetadata: Property<Boolean>
+
+    @get:Input
     abstract val verbose: Property<Boolean>
 
     init {
@@ -63,7 +66,7 @@ abstract class AnalyzeTask : DefaultTask() {
         }
 
         val slimJre = SlimJre()
-        val result = slimJre.analyzeOnly(jars)
+        val result = slimJre.analyzeOnly(jars, scanServiceLoaders.get(), scanGraalVmMetadata.get())
 
         logAnalysis(result, jars)
     }
@@ -87,6 +90,62 @@ abstract class AnalyzeTask : DefaultTask() {
             logger.lifecycle("")
             logger.lifecycle("Service Loader Modules: ${result.serviceLoaderModules().size}")
             result.serviceLoaderModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.reflectionModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("Reflection Modules: ${result.reflectionModules().size}")
+            result.reflectionModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.apiUsageModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("API Usage Modules: ${result.apiUsageModules().size}")
+            result.apiUsageModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.graalVmMetadataModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("GraalVM Metadata Modules: ${result.graalVmMetadataModules().size}")
+            result.graalVmMetadataModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.cryptoModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("Crypto Modules (SSL/TLS): ${result.cryptoModules().size}")
+            result.cryptoModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.localeModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("Locale Modules (i18n): ${result.localeModules().size}")
+            result.localeModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.zipFsModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("ZipFS Modules (ZIP filesystem): ${result.zipFsModules().size}")
+            result.zipFsModules().sorted().forEach { module ->
+                logger.lifecycle("  - $module")
+            }
+        }
+
+        if (result.jmxModules().isNotEmpty()) {
+            logger.lifecycle("")
+            logger.lifecycle("JMX Modules (remote management): ${result.jmxModules().size}")
+            result.jmxModules().sorted().forEach { module ->
                 logger.lifecycle("  - $module")
             }
         }

@@ -102,6 +102,38 @@ public class AnalyzeMojo extends AbstractSlimJreMojo {
         }
       }
 
+      if (!result.cryptoModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("Crypto Modules (SSL/TLS): " + result.cryptoModules().size());
+        for (String module : result.cryptoModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.localeModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("Locale Modules (i18n): " + result.localeModules().size());
+        for (String module : result.localeModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.zipFsModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("ZipFS Modules (ZIP filesystem): " + result.zipFsModules().size());
+        for (String module : result.zipFsModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
+      if (!result.jmxModules().isEmpty()) {
+        getLog().info("");
+        getLog().info("JMX Modules (remote management): " + result.jmxModules().size());
+        for (String module : result.jmxModules().stream().sorted().toList()) {
+          getLog().info("  - " + module);
+        }
+      }
+
       if (!getAdditionalModulesSet().isEmpty()) {
         getLog().info("");
         getLog().info("Additional Modules (configured): " + getAdditionalModulesSet().size());

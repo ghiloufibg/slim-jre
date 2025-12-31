@@ -79,6 +79,8 @@ class SlimJrePlugin : Plugin<Project> {
             noHeaderFiles.set(extension.noHeaderFiles)
             noManPages.set(extension.noManPages)
             scanServiceLoaders.set(extension.scanServiceLoaders)
+            scanGraalVmMetadata.set(extension.scanGraalVmMetadata)
+            cryptoMode.set(extension.cryptoMode)
             verbose.set(extension.verbose)
 
             // Depend on jar task
@@ -98,6 +100,7 @@ class SlimJrePlugin : Plugin<Project> {
             additionalModules.set(extension.additionalModules)
             excludeModules.set(extension.excludeModules)
             scanServiceLoaders.set(extension.scanServiceLoaders)
+            scanGraalVmMetadata.set(extension.scanGraalVmMetadata)
             verbose.set(extension.verbose)
 
             // Depend on jar task

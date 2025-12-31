@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.gradle
 
+import com.ghiloufi.slimjre.config.CryptoMode
 import com.ghiloufi.slimjre.config.Result
 import com.ghiloufi.slimjre.config.SlimJreConfig
 import com.ghiloufi.slimjre.core.SlimJre
@@ -49,6 +50,12 @@ abstract class CreateJreTask : DefaultTask() {
     abstract val scanServiceLoaders: Property<Boolean>
 
     @get:Input
+    abstract val scanGraalVmMetadata: Property<Boolean>
+
+    @get:Input
+    abstract val cryptoMode: Property<CryptoMode>
+
+    @get:Input
     abstract val verbose: Property<Boolean>
 
     init {
@@ -93,6 +100,8 @@ abstract class CreateJreTask : DefaultTask() {
             .noHeaderFiles(noHeaderFiles.get())
             .noManPages(noManPages.get())
             .scanServiceLoaders(scanServiceLoaders.get())
+            .scanGraalVmMetadata(scanGraalVmMetadata.get())
+            .cryptoMode(cryptoMode.get())
             .verbose(verbose.get())
             .build()
     }

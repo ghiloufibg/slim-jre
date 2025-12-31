@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.gradle
 
+import com.ghiloufi.slimjre.config.CryptoMode
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.model.ObjectFactory
@@ -73,6 +74,20 @@ abstract class SlimJreExtension @Inject constructor(objects: ObjectFactory) {
     abstract val scanServiceLoaders: Property<Boolean>
 
     /**
+     * Whether to scan GraalVM native-image metadata for additional modules.
+     * Default: true
+     */
+    abstract val scanGraalVmMetadata: Property<Boolean>
+
+    /**
+     * Controls how SSL/TLS and cryptographic module requirements are handled.
+     * - AUTO (default): Automatically detect SSL/TLS usage and include crypto modules if needed
+     * - ALWAYS: Always include crypto modules regardless of detection
+     * - NEVER: Never include crypto modules, even if SSL/TLS usage is detected
+     */
+    abstract val cryptoMode: Property<CryptoMode>
+
+    /**
      * Whether to output verbose logging.
      * Default: false
      */
@@ -97,6 +112,8 @@ abstract class SlimJreExtension @Inject constructor(objects: ObjectFactory) {
         noHeaderFiles.convention(true)
         noManPages.convention(true)
         scanServiceLoaders.convention(true)
+        scanGraalVmMetadata.convention(true)
+        cryptoMode.convention(CryptoMode.AUTO)
         verbose.convention(false)
         skip.convention(false)
         additionalModules.convention(emptySet())

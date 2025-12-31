@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.maven;
 
+import com.ghiloufi.slimjre.config.CryptoMode;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,6 +35,19 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
   /** Whether to scan GraalVM native-image metadata for additional modules. */
   @Parameter(property = "slimjre.scanGraalVmMetadata", defaultValue = "true")
   protected boolean scanGraalVmMetadata;
+
+  /**
+   * Controls how SSL/TLS and cryptographic module requirements are handled.
+   *
+   * <ul>
+   *   <li>{@code AUTO} (default): Automatically detect SSL/TLS usage and include crypto modules if
+   *       needed
+   *   <li>{@code ALWAYS}: Always include crypto modules regardless of detection
+   *   <li>{@code NEVER}: Never include crypto modules, even if SSL/TLS usage is detected
+   * </ul>
+   */
+  @Parameter(property = "slimjre.cryptoMode", defaultValue = "AUTO")
+  protected CryptoMode cryptoMode;
 
   /** Whether to output verbose logging. */
   @Parameter(property = "slimjre.verbose", defaultValue = "false")
