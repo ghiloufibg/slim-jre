@@ -5,67 +5,36 @@ import java.awt.event.ActionListener;
 import javax.swing.*;
 
 /**
- * Panel containing action buttons and progress indicator.
+ * Panel containing action buttons.
  *
  * <p>Provides:
  *
  * <ul>
  *   <li>Analyze button for module detection
  *   <li>Create JRE button for JRE generation
- *   <li>Progress bar with status message
  * </ul>
  */
 public class ActionPanel extends JPanel {
 
   private final JButton analyzeButton;
   private final JButton createJreButton;
-  private final JButton exportButton;
-  private final JProgressBar progressBar;
-  private final JLabel statusLabel;
 
-  /** Creates a new action panel with buttons and progress bar. */
+  /** Creates a new action panel with buttons. */
   public ActionPanel() {
-    setLayout(new BorderLayout(10, 5));
-    setBorder(BorderFactory.createEmptyBorder(10, 0, 5, 0));
-
-    // Buttons panel
-    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+    setLayout(new FlowLayout(FlowLayout.CENTER, 15, 10));
+    setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
 
     analyzeButton = new JButton("Analyze");
     analyzeButton.setPreferredSize(new Dimension(120, 32));
     analyzeButton.setFont(analyzeButton.getFont().deriveFont(Font.BOLD));
     analyzeButton.setToolTipText("Analyze JARs to detect required modules (Ctrl+A)");
-    buttonPanel.add(analyzeButton);
+    add(analyzeButton);
 
     createJreButton = new JButton("Create JRE");
     createJreButton.setPreferredSize(new Dimension(120, 32));
     createJreButton.setFont(createJreButton.getFont().deriveFont(Font.BOLD));
     createJreButton.setToolTipText("Create a minimal JRE with detected modules (Ctrl+Enter)");
-    buttonPanel.add(createJreButton);
-
-    exportButton = new JButton("Export Report");
-    exportButton.setPreferredSize(new Dimension(120, 32));
-    exportButton.setToolTipText("Export analysis results to file (Ctrl+E)");
-    exportButton.setEnabled(false);
-    buttonPanel.add(exportButton);
-
-    add(buttonPanel, BorderLayout.NORTH);
-
-    // Progress panel
-    JPanel progressPanel = new JPanel(new BorderLayout(10, 0));
-    progressPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
-
-    progressBar = new JProgressBar(0, 100);
-    progressBar.setStringPainted(false);
-    progressBar.setPreferredSize(new Dimension(0, 20));
-    progressPanel.add(progressBar, BorderLayout.CENTER);
-
-    statusLabel = new JLabel(" ");
-    statusLabel.setFont(statusLabel.getFont().deriveFont(11f));
-    statusLabel.setPreferredSize(new Dimension(300, 20));
-    progressPanel.add(statusLabel, BorderLayout.EAST);
-
-    add(progressPanel, BorderLayout.CENTER);
+    add(createJreButton);
 
     // Register keyboard shortcuts
     registerKeyboardShortcuts();
@@ -101,21 +70,6 @@ public class ActionPanel extends JPanel {
                 }
               }
             });
-
-    // Ctrl+E for Export Report
-    getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-        .put(KeyStroke.getKeyStroke("control E"), "export");
-    getActionMap()
-        .put(
-            "export",
-            new AbstractAction() {
-              @Override
-              public void actionPerformed(java.awt.event.ActionEvent e) {
-                if (exportButton.isEnabled()) {
-                  exportButton.doClick();
-                }
-              }
-            });
   }
 
   /**
@@ -145,19 +99,6 @@ public class ActionPanel extends JPanel {
   }
 
   /**
-   * Sets the action listener for the Export Report button.
-   *
-   * @param listener the action listener
-   */
-  public void setExportAction(ActionListener listener) {
-    // Remove existing listeners
-    for (ActionListener al : exportButton.getActionListeners()) {
-      exportButton.removeActionListener(al);
-    }
-    exportButton.addActionListener(listener);
-  }
-
-  /**
    * Enables or disables the Analyze button.
    *
    * @param enabled true to enable
@@ -176,48 +117,26 @@ public class ActionPanel extends JPanel {
   }
 
   /**
-   * Enables or disables the Export Report button.
+   * Updates progress (no-op, kept for API compatibility).
    *
-   * @param enabled true to enable
-   */
-  public void setExportEnabled(boolean enabled) {
-    exportButton.setEnabled(enabled);
-  }
-
-  /**
-   * Updates the progress bar and status message.
-   *
-   * @param percent progress percentage (0-100)
-   * @param message status message to display
+   * @param percent progress percentage (ignored)
+   * @param message status message (ignored)
    */
   public void setProgress(int percent, String message) {
-    progressBar.setValue(percent);
-    progressBar.setStringPainted(percent > 0);
-    if (percent > 0 && percent < 100) {
-      progressBar.setString(percent + "%");
-    } else {
-      progressBar.setString(null);
-    }
-    statusLabel.setText(message);
+    // No-op: progress bar removed
   }
 
   /**
-   * Sets the progress bar to indeterminate mode.
+   * Sets indeterminate mode (no-op, kept for API compatibility).
    *
-   * @param indeterminate true for indeterminate mode
+   * @param indeterminate ignored
    */
   public void setIndeterminate(boolean indeterminate) {
-    progressBar.setIndeterminate(indeterminate);
-    if (indeterminate) {
-      progressBar.setStringPainted(false);
-    }
+    // No-op: progress bar removed
   }
 
-  /** Resets the progress bar and status. */
+  /** Resets progress (no-op, kept for API compatibility). */
   public void reset() {
-    progressBar.setValue(0);
-    progressBar.setIndeterminate(false);
-    progressBar.setStringPainted(false);
-    statusLabel.setText(" ");
+    // No-op: progress bar removed
   }
 }

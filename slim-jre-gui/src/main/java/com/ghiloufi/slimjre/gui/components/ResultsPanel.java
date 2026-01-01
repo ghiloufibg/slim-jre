@@ -18,16 +18,15 @@ import javax.swing.table.TableRowSorter;
  * <p>Provides a tabbed interface with:
  *
  * <ul>
- *   <li>Summary view with module breakdown statistics
+ *   <li>Summary view with module breakdown statistics for all 9 scanner types
  *   <li>Module table with sorting and filtering
- *   <li>Text output for detailed information
+ *   <li>Per-JAR tree view for detailed breakdown
  * </ul>
  */
 public class ResultsPanel extends JPanel {
 
   private final JTabbedPane tabbedPane;
   private final JTextArea summaryArea;
-  private final ModuleSourceChart moduleChart;
   private final JTable moduleTable;
   private final DefaultTableModel tableModel;
   private final JTextField filterField;
@@ -40,7 +39,7 @@ public class ResultsPanel extends JPanel {
 
     tabbedPane = new JTabbedPane();
 
-    // Summary tab with chart
+    // Summary tab
     JPanel summaryPanel = new JPanel(new BorderLayout(10, 10));
     summaryPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
@@ -50,17 +49,7 @@ public class ResultsPanel extends JPanel {
     summaryArea.setText(getEmptyStateText());
     JScrollPane summaryScroll = new JScrollPane(summaryArea);
 
-    moduleChart = new ModuleSourceChart();
-    moduleChart.setPreferredSize(new java.awt.Dimension(280, 260));
-
-    // Split pane for summary text and chart
-    JSplitPane summarySplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-    summarySplit.setLeftComponent(summaryScroll);
-    summarySplit.setRightComponent(moduleChart);
-    summarySplit.setResizeWeight(0.6);
-    summarySplit.setDividerLocation(350);
-
-    summaryPanel.add(summarySplit, BorderLayout.CENTER);
+    summaryPanel.add(summaryScroll, BorderLayout.CENTER);
     tabbedPane.addTab("Summary", summaryPanel);
 
     // Modules tab
@@ -82,8 +71,10 @@ public class ResultsPanel extends JPanel {
 
     // Filter panel
     JPanel filterPanel = new JPanel(new BorderLayout(5, 0));
-    filterPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
-    filterPanel.add(new JLabel("Filter: "), BorderLayout.WEST);
+    filterPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+    JLabel filterLabel = new JLabel("Filter:");
+    filterLabel.setPreferredSize(new Dimension(45, 20));
+    filterPanel.add(filterLabel, BorderLayout.WEST);
     filterField = new JTextField();
     filterField.addActionListener(e -> applyFilter());
     filterField
@@ -144,38 +135,48 @@ public class ResultsPanel extends JPanel {
   /**
    * Displays the analysis result in the panel.
    *
+   * <p>Shows all 9 scanner types: jdeps, service loaders, reflection, API usage, GraalVM metadata,
+   * crypto, locale, zipfs, and jmx.
+   *
    * @param result the analysis result to display
    */
   public void displayAnalysisResult(AnalysisResult result) {
-    // Build summary text
+    // Build summary text with all 9 scanner types
     StringBuilder sb = new StringBuilder();
     sb.append("=".repeat(50)).append("\n");
     sb.append("  ANALYSIS RESULTS\n");
     sb.append("=".repeat(50)).append("\n\n");
 
     sb.append("Module Detection Summary:\n");
-    sb.append("-".repeat(30)).append("\n");
+    sb.append("-".repeat(35)).append("\n");
     sb.append(
-        String.format("  jdeps (static):      %3d modules\n", result.requiredModules().size()));
-    sb.append(
-        String.format(
-            "  Service loaders:     %3d modules\n", result.serviceLoaderModules().size()));
-    sb.append(
-        String.format("  Reflection:          %3d modules\n", result.reflectionModules().size()));
-    sb.append(
-        String.format("  API usage:           %3d modules\n", result.apiUsageModules().size()));
+        String.format("  jdeps (static):        %3d modules\n", result.requiredModules().size()));
     sb.append(
         String.format(
-            "  GraalVM metadata:    %3d modules\n", result.graalVmMetadataModules().size()));
-    sb.append("-".repeat(30)).append("\n");
-    sb.append(String.format("  TOTAL:               %3d modules\n", result.allModules().size()));
+            "  Service loaders:       %3d modules\n", result.serviceLoaderModules().size()));
+    sb.append(
+        String.format("  Reflection:            %3d modules\n", result.reflectionModules().size()));
+    sb.append(
+        String.format("  API usage:             %3d modules\n", result.apiUsageModules().size()));
+    sb.append(
+        String.format(
+            "  GraalVM metadata:      %3d modules\n", result.graalVmMetadataModules().size()));
+    sb.append(
+        String.format("  Crypto (SSL/TLS):      %3d modules\n", result.cryptoModules().size()));
+    sb.append(
+        String.format("  Locale (i18n):         %3d modules\n", result.localeModules().size()));
+    sb.append(
+        String.format("  ZipFS:                 %3d modules\n", result.zipFsModules().size()));
+    sb.append(String.format("  JMX (remote mgmt):     %3d modules\n", result.jmxModules().size()));
+    sb.append("-".repeat(35)).append("\n");
+    sb.append(String.format("  TOTAL:                 %3d modules\n", result.allModules().size()));
     sb.append("\n");
 
     // Per-JAR breakdown
     Map<Path, Set<String>> perJar = result.perJarModules();
     if (!perJar.isEmpty()) {
       sb.append("Per-JAR Breakdown:\n");
-      sb.append("-".repeat(30)).append("\n");
+      sb.append("-".repeat(35)).append("\n");
       for (var entry : perJar.entrySet()) {
         sb.append(
             String.format(
@@ -186,13 +187,13 @@ public class ResultsPanel extends JPanel {
 
     // All modules list
     sb.append("All Required Modules:\n");
-    sb.append("-".repeat(30)).append("\n");
+    sb.append("-".repeat(35)).append("\n");
     String moduleList = result.allModules().stream().sorted().collect(Collectors.joining(", "));
     sb.append(wrapText(moduleList, 48)).append("\n\n");
 
     // jlink command
     sb.append("Recommended jlink command:\n");
-    sb.append("-".repeat(30)).append("\n");
+    sb.append("-".repeat(35)).append("\n");
     String modules = result.allModules().stream().sorted().collect(Collectors.joining(","));
     sb.append("jlink --add-modules ").append(modules).append(" \\\n");
     sb.append("      --strip-debug --compress zip-6 \\\n");
@@ -202,16 +203,17 @@ public class ResultsPanel extends JPanel {
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
 
-    // Update pie chart
-    moduleChart.setData(result);
-
-    // Populate module table
+    // Populate module table with all 9 scanner types
     tableModel.setRowCount(0);
     addModulesToTable(result.requiredModules(), "jdeps");
     addModulesToTable(result.serviceLoaderModules(), "service-loader");
     addModulesToTable(result.reflectionModules(), "reflection");
     addModulesToTable(result.apiUsageModules(), "api-usage");
     addModulesToTable(result.graalVmMetadataModules(), "graalvm");
+    addModulesToTable(result.cryptoModules(), "crypto");
+    addModulesToTable(result.localeModules(), "locale");
+    addModulesToTable(result.zipFsModules(), "zipfs");
+    addModulesToTable(result.jmxModules(), "jmx");
 
     // Update per-JAR tree
     perJarTreePanel.setData(result);
@@ -251,7 +253,7 @@ public class ResultsPanel extends JPanel {
     sb.append("  ").append(result.jrePath()).append("\n\n");
 
     sb.append("Size Comparison:\n");
-    sb.append("-".repeat(30)).append("\n");
+    sb.append("-".repeat(35)).append("\n");
     sb.append(
         String.format("  Original JDK:  %s\n", SizeFormatter.format(result.originalJreSize())));
     sb.append(String.format("  Slim JRE:      %s\n", SizeFormatter.format(result.slimJreSize())));
@@ -259,7 +261,7 @@ public class ResultsPanel extends JPanel {
     sb.append("\n");
 
     sb.append("Included Modules: ").append(result.includedModules().size()).append("\n");
-    sb.append("-".repeat(30)).append("\n");
+    sb.append("-".repeat(35)).append("\n");
     String moduleList =
         result.includedModules().stream().sorted().collect(Collectors.joining(", "));
     sb.append(wrapText(moduleList, 48)).append("\n\n");
@@ -282,7 +284,6 @@ public class ResultsPanel extends JPanel {
   /** Clears all results from the panel. */
   public void clear() {
     summaryArea.setText(getEmptyStateText());
-    moduleChart.clear();
     tableModel.setRowCount(0);
     filterField.setText("");
     perJarTreePanel.clear();

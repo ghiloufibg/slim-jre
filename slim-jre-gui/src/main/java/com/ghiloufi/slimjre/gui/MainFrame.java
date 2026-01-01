@@ -9,21 +9,16 @@ import com.ghiloufi.slimjre.gui.components.ConfigurationPanel;
 import com.ghiloufi.slimjre.gui.components.JarSelectionPanel;
 import com.ghiloufi.slimjre.gui.components.ResultsPanel;
 import com.ghiloufi.slimjre.gui.model.GuiPreferences;
-import com.ghiloufi.slimjre.gui.util.ConfigurationManager;
-import com.ghiloufi.slimjre.gui.util.ConfigurationManager.GuiConfiguration;
 import com.ghiloufi.slimjre.gui.util.ErrorDialog;
-import com.ghiloufi.slimjre.gui.util.ReportExporter;
 import com.ghiloufi.slimjre.gui.workers.AnalysisWorker;
 import com.ghiloufi.slimjre.gui.workers.CreateJreWorker;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.AbstractAction;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
  * Main application window for Slim JRE GUI.
@@ -41,7 +36,6 @@ public class MainFrame extends JFrame {
   private final ConfigurationPanel configurationPanel;
   private final ResultsPanel resultsPanel;
   private final ActionPanel actionPanel;
-  private final JLabel statusLabel;
   private final GuiPreferences preferences;
 
   private SwingWorker<?, ?> currentWorker;
@@ -74,7 +68,6 @@ public class MainFrame extends JFrame {
     configurationPanel = new ConfigurationPanel();
     resultsPanel = new ResultsPanel();
     actionPanel = new ActionPanel();
-    statusLabel = new JLabel("Ready");
 
     // Apply preferences to configuration panel
     configurationPanel.applyPreferences(preferences);
@@ -146,20 +139,8 @@ public class MainFrame extends JFrame {
     centerSplit.setRightComponent(resultsPanel);
     contentPane.add(centerSplit, BorderLayout.CENTER);
 
-    // Bottom: Actions + Status
-    JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
-    bottomPanel.add(actionPanel, BorderLayout.CENTER);
-
-    // Status bar
-    JPanel statusBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
-    statusBar.setBorder(BorderFactory.createLoweredSoftBevelBorder());
-    statusLabel.setFont(statusLabel.getFont().deriveFont(Font.PLAIN, 11f));
-    statusBar.add(statusLabel);
-    statusBar.add(new JSeparator(SwingConstants.VERTICAL));
-    statusBar.add(new JLabel("JDK " + Runtime.version().feature()));
-    bottomPanel.add(statusBar, BorderLayout.SOUTH);
-
-    contentPane.add(bottomPanel, BorderLayout.SOUTH);
+    // Bottom: Actions
+    contentPane.add(actionPanel, BorderLayout.SOUTH);
 
     setContentPane(contentPane);
   }
@@ -180,18 +161,6 @@ public class MainFrame extends JFrame {
     addFolderItem.setAccelerator(KeyStroke.getKeyStroke("control shift O"));
     addFolderItem.addActionListener(e -> jarSelectionPanel.showAddFolderDialog());
     fileMenu.add(addFolderItem);
-
-    fileMenu.addSeparator();
-
-    JMenuItem saveConfigItem = new JMenuItem("Save Configuration...");
-    saveConfigItem.setAccelerator(KeyStroke.getKeyStroke("control S"));
-    saveConfigItem.addActionListener(e -> saveConfiguration());
-    fileMenu.add(saveConfigItem);
-
-    JMenuItem loadConfigItem = new JMenuItem("Load Configuration...");
-    loadConfigItem.setAccelerator(KeyStroke.getKeyStroke("control L"));
-    loadConfigItem.addActionListener(e -> loadConfiguration());
-    fileMenu.add(loadConfigItem);
 
     fileMenu.addSeparator();
 
@@ -224,9 +193,6 @@ public class MainFrame extends JFrame {
 
     // Create JRE button
     actionPanel.setCreateJreAction(e -> runCreateJre());
-
-    // Export button
-    actionPanel.setExportAction(e -> exportReport());
   }
 
   private void setupKeyboardShortcuts() {
@@ -290,27 +256,6 @@ public class MainFrame extends JFrame {
 
     actionPanel.setAnalyzeEnabled(hasJars && !isRunning);
     actionPanel.setCreateJreEnabled(hasJars && !isRunning);
-
-    // Update status
-    if (hasJars) {
-      long totalSize =
-          jars.stream()
-              .mapToLong(
-                  p -> {
-                    try {
-                      return java.nio.file.Files.size(p);
-                    } catch (Exception e) {
-                      return 0;
-                    }
-                  })
-              .sum();
-      statusLabel.setText(
-          String.format(
-              "%d JAR(s) selected (%s)",
-              jars.size(), com.ghiloufi.slimjre.gui.util.SizeFormatter.format(totalSize)));
-    } else {
-      statusLabel.setText("Ready - Select JAR files to analyze");
-    }
   }
 
   private void runAnalysis() {
@@ -325,12 +270,8 @@ public class MainFrame extends JFrame {
     actionPanel.setProgress(0, "Starting analysis...");
     resultsPanel.clear();
 
-    // Create and run worker
-    AnalysisWorker worker =
-        new AnalysisWorker(
-            jars,
-            configurationPanel.isScanServiceLoaders(),
-            configurationPanel.isScanGraalVmMetadata());
+    // Create and run worker - all scanners enabled by default
+    AnalysisWorker worker = new AnalysisWorker(jars);
 
     worker.addPropertyChangeListener(
         evt -> {
@@ -355,7 +296,6 @@ public class MainFrame extends JFrame {
       resultsPanel.displayAnalysisResult(result);
       actionPanel.setProgress(
           100, "Analysis complete - " + result.allModules().size() + " modules detected");
-      actionPanel.setExportEnabled(true);
     } catch (Exception e) {
       Throwable cause = e.getCause();
       if (cause instanceof SlimJreException) {
@@ -365,7 +305,6 @@ public class MainFrame extends JFrame {
       }
       actionPanel.setProgress(0, "Analysis failed");
       lastAnalysisResult = null;
-      actionPanel.setExportEnabled(false);
     } finally {
       currentWorker = null;
       updateState();
@@ -448,120 +387,6 @@ public class MainFrame extends JFrame {
     } finally {
       currentWorker = null;
       updateState();
-    }
-  }
-
-  private void saveConfiguration() {
-    JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Save Configuration");
-    chooser.setFileFilter(new FileNameExtensionFilter("JSON Configuration (*.json)", "json"));
-    chooser.setSelectedFile(new java.io.File("slim-jre-config.json"));
-
-    if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-      Path outputPath = chooser.getSelectedFile().toPath();
-      if (!outputPath.toString().endsWith(".json")) {
-        outputPath = Path.of(outputPath + ".json");
-      }
-
-      try {
-        List<Path> jars = jarSelectionPanel.getSelectedJars();
-        GuiConfiguration config =
-            new GuiConfiguration(
-                jars,
-                configurationPanel.getOutputDirectory(),
-                configurationPanel.isStripDebug(),
-                configurationPanel.isScanServiceLoaders(),
-                configurationPanel.isScanGraalVmMetadata(),
-                configurationPanel.isVerbose(),
-                configurationPanel.getCompression(),
-                configurationPanel.getAdditionalModules(),
-                configurationPanel.getExcludeModules());
-
-        ConfigurationManager.saveConfiguration(config, outputPath);
-        ErrorDialog.showInfo(this, "Configuration Saved", "Configuration saved to:\n" + outputPath);
-      } catch (IOException ex) {
-        ErrorDialog.showMessage(
-            this, "Save Error", "Failed to save configuration:\n" + ex.getMessage());
-      }
-    }
-  }
-
-  private void loadConfiguration() {
-    JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Load Configuration");
-    chooser.setFileFilter(new FileNameExtensionFilter("JSON Configuration (*.json)", "json"));
-
-    if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-      Path inputPath = chooser.getSelectedFile().toPath();
-
-      try {
-        GuiConfiguration config = ConfigurationManager.loadConfiguration(inputPath);
-
-        // Apply to JAR selection panel
-        jarSelectionPanel.clearJars();
-        for (Path jar : config.jarFiles()) {
-          if (java.nio.file.Files.exists(jar)) {
-            jarSelectionPanel.addJar(jar);
-          }
-        }
-
-        // Apply to configuration panel
-        configurationPanel.setOutputDirectory(config.outputDirectory());
-        configurationPanel.setStripDebug(config.stripDebug());
-        configurationPanel.setScanServiceLoaders(config.scanServiceLoaders());
-        configurationPanel.setScanGraalVmMetadata(config.scanGraalVmMetadata());
-        configurationPanel.setVerbose(config.verbose());
-        configurationPanel.setCompression(config.compression());
-        configurationPanel.setAdditionalModules(config.additionalModules());
-        configurationPanel.setExcludeModules(config.excludeModules());
-
-        updateState();
-        ErrorDialog.showInfo(
-            this, "Configuration Loaded", "Configuration loaded from:\n" + inputPath);
-      } catch (IOException ex) {
-        ErrorDialog.showMessage(
-            this, "Load Error", "Failed to load configuration:\n" + ex.getMessage());
-      }
-    }
-  }
-
-  private void exportReport() {
-    if (lastAnalysisResult == null) {
-      ErrorDialog.showWarning(this, "No Data", "Run analysis first to generate a report.");
-      return;
-    }
-
-    JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Export Report");
-    chooser.addChoosableFileFilter(new FileNameExtensionFilter("Text Report (*.txt)", "txt"));
-    chooser.addChoosableFileFilter(new FileNameExtensionFilter("JSON Report (*.json)", "json"));
-    chooser.setFileFilter(chooser.getChoosableFileFilters()[1]); // Default to text
-    chooser.setSelectedFile(new java.io.File("slim-jre-report.txt"));
-
-    if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-      Path outputPath = chooser.getSelectedFile().toPath();
-      String filterDesc = chooser.getFileFilter().getDescription();
-      boolean isJson = filterDesc.contains("JSON");
-
-      // Ensure correct extension
-      if (isJson && !outputPath.toString().endsWith(".json")) {
-        outputPath = Path.of(outputPath.toString().replaceAll("\\.txt$", "") + ".json");
-      } else if (!isJson && !outputPath.toString().endsWith(".txt")) {
-        outputPath = Path.of(outputPath.toString().replaceAll("\\.json$", "") + ".txt");
-      }
-
-      try {
-        List<Path> jars = jarSelectionPanel.getSelectedJars();
-        if (isJson) {
-          ReportExporter.exportAnalysisToJson(lastAnalysisResult, jars, outputPath);
-        } else {
-          ReportExporter.exportAnalysisToText(lastAnalysisResult, jars, outputPath);
-        }
-        ErrorDialog.showInfo(this, "Report Exported", "Report exported to:\n" + outputPath);
-      } catch (IOException ex) {
-        ErrorDialog.showMessage(
-            this, "Export Error", "Failed to export report:\n" + ex.getMessage());
-      }
     }
   }
 

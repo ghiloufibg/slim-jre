@@ -1,5 +1,6 @@
 package com.ghiloufi.slimjre.gui.components;
 
+import com.ghiloufi.slimjre.config.CryptoMode;
 import com.ghiloufi.slimjre.config.SlimJreConfig;
 import com.ghiloufi.slimjre.gui.model.GuiPreferences;
 import java.awt.*;
@@ -17,22 +18,23 @@ import javax.swing.*;
  * <p>Provides controls for:
  *
  * <ul>
- *   <li>Output directory selection
- *   <li>Strip debug info toggle
- *   <li>Service loader scanning toggle
- *   <li>GraalVM metadata scanning toggle
+ *   <li>Output folder and JRE name selection
  *   <li>Compression level selection
+ *   <li>Strip debug, headers, and man pages toggles
  *   <li>Additional/excluded modules input
  * </ul>
+ *
+ * <p>All scanners (jdeps, service loaders, reflection, API usage, GraalVM metadata, crypto, locale,
+ * zipfs, jmx) are enabled by default without user configuration.
  */
 public class ConfigurationPanel extends JPanel {
 
-  private final JTextField outputDirectoryField;
-  private final JCheckBox stripDebugCheckbox;
-  private final JCheckBox scanServiceLoadersCheckbox;
-  private final JCheckBox scanGraalVmMetadataCheckbox;
-  private final JCheckBox verboseCheckbox;
+  private final JTextField outputFolderField;
+  private final JTextField jreNameField;
   private final JComboBox<String> compressionCombo;
+  private final JCheckBox stripDebugCheckbox;
+  private final JCheckBox stripHeadersCheckbox;
+  private final JCheckBox stripManPagesCheckbox;
   private final JTextField additionalModulesField;
   private final JTextField excludeModulesField;
 
@@ -41,11 +43,8 @@ public class ConfigurationPanel extends JPanel {
     setLayout(new GridBagLayout());
 
     // Initialize components
-    outputDirectoryField = new JTextField("slim-jre");
-    stripDebugCheckbox = new JCheckBox("Strip debug info", true);
-    scanServiceLoadersCheckbox = new JCheckBox("Scan service loaders", true);
-    scanGraalVmMetadataCheckbox = new JCheckBox("Scan GraalVM metadata", true);
-    verboseCheckbox = new JCheckBox("Verbose output", false);
+    outputFolderField = new JTextField(".");
+    jreNameField = new JTextField("slim-jre");
 
     String[] compressionLevels = new String[10];
     for (int i = 0; i <= 9; i++) {
@@ -53,6 +52,10 @@ public class ConfigurationPanel extends JPanel {
     }
     compressionCombo = new JComboBox<>(compressionLevels);
     compressionCombo.setSelectedIndex(6);
+
+    stripDebugCheckbox = new JCheckBox("Strip debug info", true);
+    stripHeadersCheckbox = new JCheckBox("Strip header files", true);
+    stripManPagesCheckbox = new JCheckBox("Strip man pages", true);
 
     additionalModulesField = new JTextField();
     excludeModulesField = new JTextField();
@@ -65,56 +68,41 @@ public class ConfigurationPanel extends JPanel {
     GridBagConstraints gbc = new GridBagConstraints();
     gbc.insets = new Insets(4, 4, 4, 4);
     gbc.anchor = GridBagConstraints.WEST;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
 
     int row = 0;
 
-    // Output directory
+    // Output folder
     gbc.gridx = 0;
     gbc.gridy = row;
     gbc.weightx = 0;
-    add(new JLabel("Output:"), gbc);
+    gbc.fill = GridBagConstraints.NONE;
+    add(new JLabel("Folder:"), gbc);
 
-    JPanel outputPanel = new JPanel(new BorderLayout(5, 0));
-    outputPanel.add(outputDirectoryField, BorderLayout.CENTER);
+    JPanel folderPanel = new JPanel(new BorderLayout(5, 0));
+    folderPanel.add(outputFolderField, BorderLayout.CENTER);
     JButton browseButton = new JButton("...");
     browseButton.setPreferredSize(new Dimension(30, 25));
-    browseButton.addActionListener(e -> browseOutputDirectory());
-    outputPanel.add(browseButton, BorderLayout.EAST);
+    browseButton.addActionListener(e -> browseOutputFolder());
+    folderPanel.add(browseButton, BorderLayout.EAST);
 
     gbc.gridx = 1;
     gbc.weightx = 1.0;
-    add(outputPanel, gbc);
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    add(folderPanel, gbc);
 
     row++;
 
-    // Separator
+    // JRE name
     gbc.gridx = 0;
     gbc.gridy = row;
-    gbc.gridwidth = 2;
-    add(Box.createVerticalStrut(10), gbc);
-    gbc.gridwidth = 1;
+    gbc.weightx = 0;
+    gbc.fill = GridBagConstraints.NONE;
+    add(new JLabel("JRE Name:"), gbc);
 
-    row++;
-
-    // Checkboxes
-    gbc.gridx = 0;
-    gbc.gridy = row;
-    gbc.gridwidth = 2;
-    add(stripDebugCheckbox, gbc);
-
-    row++;
-    gbc.gridy = row;
-    add(scanServiceLoadersCheckbox, gbc);
-
-    row++;
-    gbc.gridy = row;
-    add(scanGraalVmMetadataCheckbox, gbc);
-
-    row++;
-    gbc.gridy = row;
-    add(verboseCheckbox, gbc);
-    gbc.gridwidth = 1;
+    gbc.gridx = 1;
+    gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    add(jreNameField, gbc);
 
     row++;
 
@@ -131,11 +119,40 @@ public class ConfigurationPanel extends JPanel {
     gbc.gridx = 0;
     gbc.gridy = row;
     gbc.weightx = 0;
+    gbc.fill = GridBagConstraints.NONE;
     add(new JLabel("Compression:"), gbc);
 
     gbc.gridx = 1;
     gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
     add(compressionCombo, gbc);
+
+    row++;
+
+    // Separator
+    gbc.gridx = 0;
+    gbc.gridy = row;
+    gbc.gridwidth = 2;
+    add(Box.createVerticalStrut(5), gbc);
+    gbc.gridwidth = 1;
+
+    row++;
+
+    // Checkboxes
+    gbc.gridx = 0;
+    gbc.gridy = row;
+    gbc.gridwidth = 2;
+    gbc.fill = GridBagConstraints.NONE;
+    add(stripDebugCheckbox, gbc);
+
+    row++;
+    gbc.gridy = row;
+    add(stripHeadersCheckbox, gbc);
+
+    row++;
+    gbc.gridy = row;
+    add(stripManPagesCheckbox, gbc);
+    gbc.gridwidth = 1;
 
     row++;
 
@@ -152,10 +169,12 @@ public class ConfigurationPanel extends JPanel {
     gbc.gridx = 0;
     gbc.gridy = row;
     gbc.weightx = 0;
-    add(new JLabel("Add modules:"), gbc);
+    gbc.fill = GridBagConstraints.NONE;
+    add(new JLabel("Add:"), gbc);
 
     gbc.gridx = 1;
     gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
     add(additionalModulesField, gbc);
 
     row++;
@@ -164,44 +183,57 @@ public class ConfigurationPanel extends JPanel {
     gbc.gridx = 0;
     gbc.gridy = row;
     gbc.weightx = 0;
+    gbc.fill = GridBagConstraints.NONE;
     add(new JLabel("Exclude:"), gbc);
 
     gbc.gridx = 1;
     gbc.weightx = 1.0;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
     add(excludeModulesField, gbc);
+
+    row++;
+
+    // Help text for modules
+    gbc.gridx = 0;
+    gbc.gridy = row;
+    gbc.gridwidth = 2;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+    gbc.insets = new Insets(0, 4, 4, 4);
+    JLabel helpLabel =
+        new JLabel("<html><i>(comma-separated, e.g., java.desktop, jdk.jfr)</i></html>");
+    helpLabel.setFont(helpLabel.getFont().deriveFont(10f));
+    helpLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+    add(helpLabel, gbc);
+    gbc.insets = new Insets(4, 4, 4, 4);
 
     row++;
 
     // Spacer to push everything up
     gbc.gridx = 0;
     gbc.gridy = row;
-    gbc.gridwidth = 2;
     gbc.weighty = 1.0;
     gbc.fill = GridBagConstraints.BOTH;
     add(Box.createVerticalGlue(), gbc);
   }
 
   private void addTooltips() {
-    outputDirectoryField.setToolTipText("Directory where the minimal JRE will be created");
-    stripDebugCheckbox.setToolTipText("Remove debug information from JRE classes (smaller size)");
-    scanServiceLoadersCheckbox.setToolTipText(
-        "Scan META-INF/services for service loader dependencies");
-    scanGraalVmMetadataCheckbox.setToolTipText(
-        "Scan GraalVM native-image metadata for reflection dependencies");
-    verboseCheckbox.setToolTipText("Enable verbose output during JRE creation");
-    compressionCombo.setToolTipText("Compression level for the JRE (higher = smaller but slower)");
+    outputFolderField.setToolTipText("Parent directory where the JRE folder will be created");
+    jreNameField.setToolTipText("Name of the folder for the minimal JRE");
+    compressionCombo.setToolTipText("Compression level (higher = smaller but slower to create)");
+    stripDebugCheckbox.setToolTipText("Remove debug information for smaller size");
+    stripHeadersCheckbox.setToolTipText("Exclude native header files (not needed at runtime)");
+    stripManPagesCheckbox.setToolTipText("Exclude manual pages (not needed at runtime)");
     additionalModulesField.setToolTipText(
-        "Comma-separated list of modules to force-include (e.g., java.management,java.sql)");
-    excludeModulesField.setToolTipText(
-        "Comma-separated list of modules to exclude (e.g., java.desktop)");
+        "Modules to force-include even if not detected (e.g., java.management, jdk.jfr)");
+    excludeModulesField.setToolTipText("Modules to exclude even if detected (e.g., java.desktop)");
   }
 
-  private void browseOutputDirectory() {
+  private void browseOutputFolder() {
     JFileChooser chooser = new JFileChooser();
-    chooser.setDialogTitle("Select Output Directory");
+    chooser.setDialogTitle("Select Output Folder");
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
-    String current = outputDirectoryField.getText().trim();
+    String current = outputFolderField.getText().trim();
     if (!current.isEmpty()) {
       File currentDir = new File(current);
       if (currentDir.exists()) {
@@ -210,26 +242,35 @@ public class ConfigurationPanel extends JPanel {
     }
 
     if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-      outputDirectoryField.setText(chooser.getSelectedFile().getAbsolutePath());
+      outputFolderField.setText(chooser.getSelectedFile().getAbsolutePath());
     }
   }
 
   /**
    * Builds a SlimJreConfig from the current panel state.
    *
+   * <p>All scanners are enabled by default (no user configuration needed).
+   *
    * @param jars list of JAR files to include
    * @return configured SlimJreConfig
    */
   public SlimJreConfig buildConfig(List<Path> jars) {
+    Path outputPath =
+        Path.of(outputFolderField.getText().trim()).resolve(jreNameField.getText().trim());
+
     SlimJreConfig.Builder builder =
         SlimJreConfig.builder()
             .jars(jars)
-            .outputPath(Path.of(outputDirectoryField.getText().trim()))
+            .outputPath(outputPath)
+            .compression(getSelectedCompression())
             .stripDebug(stripDebugCheckbox.isSelected())
-            .scanServiceLoaders(scanServiceLoadersCheckbox.isSelected())
-            .scanGraalVmMetadata(scanGraalVmMetadataCheckbox.isSelected())
-            .verbose(verboseCheckbox.isSelected())
-            .compression(getSelectedCompression());
+            .noHeaderFiles(stripHeadersCheckbox.isSelected())
+            .noManPages(stripManPagesCheckbox.isSelected())
+            // All scanners enabled by default - no UI options
+            .scanServiceLoaders(true)
+            .scanGraalVmMetadata(true)
+            .cryptoMode(CryptoMode.AUTO)
+            .verbose(false);
 
     // Add additional modules
     Set<String> addModules = parseModuleList(additionalModulesField.getText());
@@ -270,41 +311,41 @@ public class ConfigurationPanel extends JPanel {
   }
 
   /**
-   * Returns whether service loader scanning is enabled.
-   *
-   * @return true if enabled
-   */
-  public boolean isScanServiceLoaders() {
-    return scanServiceLoadersCheckbox.isSelected();
-  }
-
-  /**
-   * Returns whether GraalVM metadata scanning is enabled.
-   *
-   * @return true if enabled
-   */
-  public boolean isScanGraalVmMetadata() {
-    return scanGraalVmMetadataCheckbox.isSelected();
-  }
-
-  /**
-   * Returns the output directory path.
+   * Returns the output path (folder + JRE name).
    *
    * @return output directory path
    */
   public Path getOutputPath() {
-    return Path.of(outputDirectoryField.getText().trim());
+    return Path.of(outputFolderField.getText().trim()).resolve(jreNameField.getText().trim());
   }
 
   // ===== Getter methods for configuration save/load =====
 
   /**
-   * Returns the output directory.
+   * Returns the output folder.
    *
-   * @return output directory path
+   * @return output folder path
    */
-  public Path getOutputDirectory() {
-    return Path.of(outputDirectoryField.getText().trim());
+  public Path getOutputFolder() {
+    return Path.of(outputFolderField.getText().trim());
+  }
+
+  /**
+   * Returns the JRE name.
+   *
+   * @return JRE folder name
+   */
+  public String getJreName() {
+    return jreNameField.getText().trim();
+  }
+
+  /**
+   * Returns the compression level string.
+   *
+   * @return compression level (e.g., "zip-6")
+   */
+  public String getCompression() {
+    return getSelectedCompression();
   }
 
   /**
@@ -317,21 +358,21 @@ public class ConfigurationPanel extends JPanel {
   }
 
   /**
-   * Returns whether verbose output is enabled.
+   * Returns whether strip headers is enabled.
    *
    * @return true if enabled
    */
-  public boolean isVerbose() {
-    return verboseCheckbox.isSelected();
+  public boolean isStripHeaders() {
+    return stripHeadersCheckbox.isSelected();
   }
 
   /**
-   * Returns the compression level string.
+   * Returns whether strip man pages is enabled.
    *
-   * @return compression level (e.g., "zip-6")
+   * @return true if enabled
    */
-  public String getCompression() {
-    return getSelectedCompression();
+  public boolean isStripManPages() {
+    return stripManPagesCheckbox.isSelected();
   }
 
   /**
@@ -355,48 +396,21 @@ public class ConfigurationPanel extends JPanel {
   // ===== Setter methods for configuration load =====
 
   /**
-   * Sets the output directory.
+   * Sets the output folder.
    *
-   * @param path output directory path
+   * @param path output folder path
    */
-  public void setOutputDirectory(Path path) {
-    outputDirectoryField.setText(path.toString());
+  public void setOutputFolder(Path path) {
+    outputFolderField.setText(path.toString());
   }
 
   /**
-   * Sets whether strip debug is enabled.
+   * Sets the JRE name.
    *
-   * @param enabled true to enable
+   * @param name JRE folder name
    */
-  public void setStripDebug(boolean enabled) {
-    stripDebugCheckbox.setSelected(enabled);
-  }
-
-  /**
-   * Sets whether service loader scanning is enabled.
-   *
-   * @param enabled true to enable
-   */
-  public void setScanServiceLoaders(boolean enabled) {
-    scanServiceLoadersCheckbox.setSelected(enabled);
-  }
-
-  /**
-   * Sets whether GraalVM metadata scanning is enabled.
-   *
-   * @param enabled true to enable
-   */
-  public void setScanGraalVmMetadata(boolean enabled) {
-    scanGraalVmMetadataCheckbox.setSelected(enabled);
-  }
-
-  /**
-   * Sets whether verbose output is enabled.
-   *
-   * @param enabled true to enable
-   */
-  public void setVerbose(boolean enabled) {
-    verboseCheckbox.setSelected(enabled);
+  public void setJreName(String name) {
+    jreNameField.setText(name != null ? name : "slim-jre");
   }
 
   /**
@@ -412,6 +426,33 @@ public class ConfigurationPanel extends JPanel {
         break;
       }
     }
+  }
+
+  /**
+   * Sets whether strip debug is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setStripDebug(boolean enabled) {
+    stripDebugCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets whether strip headers is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setStripHeaders(boolean enabled) {
+    stripHeadersCheckbox.setSelected(enabled);
+  }
+
+  /**
+   * Sets whether strip man pages is enabled.
+   *
+   * @param enabled true to enable
+   */
+  public void setStripManPages(boolean enabled) {
+    stripManPagesCheckbox.setSelected(enabled);
   }
 
   /**
@@ -440,12 +481,12 @@ public class ConfigurationPanel extends JPanel {
    * @param prefs preferences to apply
    */
   public void applyPreferences(GuiPreferences prefs) {
-    setOutputDirectory(prefs.getOutputDirectory());
-    setStripDebug(prefs.isStripDebug());
-    setScanServiceLoaders(prefs.isScanServiceLoaders());
-    setScanGraalVmMetadata(prefs.isScanGraalVmMetadata());
-    setVerbose(prefs.isVerbose());
+    setOutputFolder(prefs.getOutputFolder());
+    setJreName(prefs.getJreName());
     setCompression(prefs.getCompression());
+    setStripDebug(prefs.isStripDebug());
+    setStripHeaders(prefs.isStripHeaders());
+    setStripManPages(prefs.isStripManPages());
   }
 
   /**
@@ -454,11 +495,11 @@ public class ConfigurationPanel extends JPanel {
    * @param prefs preferences to update
    */
   public void saveToPreferences(GuiPreferences prefs) {
-    prefs.setOutputDirectory(getOutputDirectory());
-    prefs.setStripDebug(isStripDebug());
-    prefs.setScanServiceLoaders(isScanServiceLoaders());
-    prefs.setScanGraalVmMetadata(isScanGraalVmMetadata());
-    prefs.setVerbose(isVerbose());
+    prefs.setOutputFolder(getOutputFolder());
+    prefs.setJreName(getJreName());
     prefs.setCompression(getCompression());
+    prefs.setStripDebug(isStripDebug());
+    prefs.setStripHeaders(isStripHeaders());
+    prefs.setStripManPages(isStripManPages());
   }
 }
