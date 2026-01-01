@@ -9,7 +9,6 @@ import javax.swing.*;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -39,8 +38,6 @@ public class ModulesPanel extends JPanel {
   private final DefaultTreeModel treeModel;
   private final JTable moduleTable;
   private final DefaultTableModel tableModel;
-  private final TableRowSorter<DefaultTableModel> rowSorter;
-  private final JTextField filterField;
   private final JLabel statusLabel;
 
   private AnalysisResult currentResult;
@@ -69,9 +66,6 @@ public class ModulesPanel extends JPanel {
           }
         };
 
-    // Initialize filter field early (needed for final field)
-    filterField = new JTextField();
-    filterField.setToolTipText("Type to filter modules (regex supported)");
     moduleTable = new JTable(tableModel);
     moduleTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
     moduleTable.getTableHeader().setReorderingAllowed(false);
@@ -81,10 +75,6 @@ public class ModulesPanel extends JPanel {
     moduleTable.getColumnModel().getColumn(0).setPreferredWidth(200);
     moduleTable.getColumnModel().getColumn(1).setPreferredWidth(100);
     moduleTable.getColumnModel().getColumn(2).setPreferredWidth(120);
-
-    // Row sorter for filtering and sorting
-    rowSorter = new TableRowSorter<>(tableModel);
-    moduleTable.setRowSorter(rowSorter);
 
     // Build left panel (JAR tree with toolbar)
     JPanel leftPanel = buildLeftPanel();
@@ -148,42 +138,6 @@ public class ModulesPanel extends JPanel {
   private JPanel buildRightPanel() {
     JPanel panel = new JPanel(new BorderLayout());
 
-    // Filter bar
-    JPanel filterPanel = new JPanel(new BorderLayout(5, 0));
-    filterPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
-    JLabel filterLabel = new JLabel("Filter:");
-    filterLabel.setPreferredSize(new Dimension(40, 20));
-    filterPanel.add(filterLabel, BorderLayout.WEST);
-
-    // Add document listener to filterField (already initialized in constructor)
-    filterField
-        .getDocument()
-        .addDocumentListener(
-            new javax.swing.event.DocumentListener() {
-              @Override
-              public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-
-              @Override
-              public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-
-              @Override
-              public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-            });
-    filterPanel.add(filterField, BorderLayout.CENTER);
-
-    JButton clearFilterBtn = new JButton("Clear");
-    clearFilterBtn.addActionListener(e -> filterField.setText(""));
-    filterPanel.add(clearFilterBtn, BorderLayout.EAST);
-
-    panel.add(filterPanel, BorderLayout.NORTH);
-
     // Table with scroll
     JScrollPane tableScroll = new JScrollPane(moduleTable);
     tableScroll.setBorder(BorderFactory.createTitledBorder("Modules"));
@@ -216,20 +170,6 @@ public class ModulesPanel extends JPanel {
     label.setForeground(color);
     label.setFont(label.getFont().deriveFont(10f));
     return label;
-  }
-
-  private void applyFilter() {
-    String text = filterField.getText().trim();
-    if (text.isEmpty()) {
-      rowSorter.setRowFilter(null);
-    } else {
-      try {
-        rowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
-      } catch (java.util.regex.PatternSyntaxException e) {
-        // Invalid regex, ignore
-      }
-    }
-    updateStatus();
   }
 
   private void onTreeSelectionChanged(TreeSelectionEvent e) {
@@ -284,13 +224,9 @@ public class ModulesPanel extends JPanel {
 
   private void updateStatus() {
     int total = tableModel.getRowCount();
-    int visible = moduleTable.getRowCount();
-    String filterText = filterField.getText().trim();
 
     if (total == 0) {
       statusLabel.setText("Select JAR file(s) from the tree to view modules");
-    } else if (!filterText.isEmpty() && visible != total) {
-      statusLabel.setText(String.format("Showing %d of %d modules (filtered)", visible, total));
     } else {
       statusLabel.setText(String.format("%d modules", total));
     }
@@ -352,7 +288,6 @@ public class ModulesPanel extends JPanel {
     jarToModules.clear();
     treeModel.reload();
     tableModel.setRowCount(0);
-    filterField.setText("");
     statusLabel.setText("Select JAR files to view modules");
   }
 
