@@ -68,70 +68,41 @@ public class ResultsPanel extends JPanel {
   /**
    * Displays the analysis result in the panel.
    *
-   * <p>Shows all 9 scanner types: jdeps, service loaders, reflection, API usage, GraalVM metadata,
-   * crypto, locale, zipfs, and jmx.
-   *
    * @param result the analysis result to display
    */
   public void displayAnalysisResult(AnalysisResult result) {
-    // Build summary text with all 9 scanner types
     StringBuilder sb = new StringBuilder();
-    sb.append("=".repeat(50)).append("\n");
-    sb.append("  ANALYSIS RESULTS\n");
-    sb.append("=".repeat(50)).append("\n\n");
 
-    sb.append("Module Detection Summary:\n");
-    sb.append("-".repeat(35)).append("\n");
-    sb.append(
-        String.format("  jdeps (static):        %3d modules\n", result.requiredModules().size()));
-    sb.append(
-        String.format(
-            "  Service loaders:       %3d modules\n", result.serviceLoaderModules().size()));
-    sb.append(
-        String.format("  Reflection:            %3d modules\n", result.reflectionModules().size()));
-    sb.append(
-        String.format("  API usage:             %3d modules\n", result.apiUsageModules().size()));
-    sb.append(
-        String.format(
-            "  GraalVM metadata:      %3d modules\n", result.graalVmMetadataModules().size()));
-    sb.append(
-        String.format("  Crypto (SSL/TLS):      %3d modules\n", result.cryptoModules().size()));
-    sb.append(
-        String.format("  Locale (i18n):         %3d modules\n", result.localeModules().size()));
-    sb.append(
-        String.format("  ZipFS:                 %3d modules\n", result.zipFsModules().size()));
-    sb.append(String.format("  JMX (remote mgmt):     %3d modules\n", result.jmxModules().size()));
-    sb.append("-".repeat(35)).append("\n");
-    sb.append(String.format("  TOTAL:                 %3d modules\n", result.allModules().size()));
+    // Header
+    sb.append("\n");
+    sb.append("  Analysis Complete\n");
     sb.append("\n");
 
-    // Per-JAR breakdown
+    // Main result - total modules
+    int totalModules = result.allModules().size();
+    sb.append(String.format("  Found %d required JDK modules\n", totalModules));
+    sb.append("\n");
+
+    // Per-JAR breakdown (if multiple JARs)
     Map<Path, Set<String>> perJar = result.perJarModules();
-    if (!perJar.isEmpty()) {
-      sb.append("Per-JAR Breakdown:\n");
-      sb.append("-".repeat(35)).append("\n");
+    if (perJar.size() > 1) {
+      sb.append("  Modules per JAR:\n");
       for (var entry : perJar.entrySet()) {
         sb.append(
             String.format(
-                "  %s: %d modules\n", entry.getKey().getFileName(), entry.getValue().size()));
+                "    • %s: %d modules\n", entry.getKey().getFileName(), entry.getValue().size()));
       }
       sb.append("\n");
     }
 
-    // All modules list
-    sb.append("All Required Modules:\n");
-    sb.append("-".repeat(35)).append("\n");
+    // Module list
+    sb.append("  Required Modules:\n");
     String moduleList = result.allModules().stream().sorted().collect(Collectors.joining(", "));
-    sb.append(wrapText(moduleList, 48)).append("\n\n");
+    sb.append(wrapText(moduleList, 50)).append("\n");
+    sb.append("\n");
 
-    // jlink command
-    sb.append("Recommended jlink command:\n");
-    sb.append("-".repeat(35)).append("\n");
-    String modules = result.allModules().stream().sorted().collect(Collectors.joining(","));
-    sb.append("jlink --add-modules ").append(modules).append(" \\\n");
-    sb.append("      --strip-debug --compress zip-6 \\\n");
-    sb.append("      --no-header-files --no-man-pages \\\n");
-    sb.append("      --output slim-jre\n");
+    // Next step hint
+    sb.append("  Click \"Create JRE\" to build a minimal runtime.\n");
 
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
@@ -150,28 +121,27 @@ public class ResultsPanel extends JPanel {
    */
   public void displayCreationResult(Result result) {
     StringBuilder sb = new StringBuilder();
-    sb.append("=".repeat(50)).append("\n");
-    sb.append("  JRE CREATION COMPLETE\n");
-    sb.append("=".repeat(50)).append("\n\n");
 
-    sb.append("Output Location:\n");
-    sb.append("  ").append(result.jrePath()).append("\n\n");
-
-    sb.append("Size Comparison:\n");
-    sb.append("-".repeat(35)).append("\n");
-    sb.append(
-        String.format("  Original JDK:  %s\n", SizeFormatter.format(result.originalJreSize())));
-    sb.append(String.format("  Slim JRE:      %s\n", SizeFormatter.format(result.slimJreSize())));
-    sb.append(String.format("  Reduction:     %.1f%%\n", result.reductionPercentage()));
+    // Header
+    sb.append("\n");
+    sb.append("  JRE Created Successfully!\n");
     sb.append("\n");
 
-    sb.append("Included Modules: ").append(result.includedModules().size()).append("\n");
-    sb.append("-".repeat(35)).append("\n");
+    // Size savings - the key metric
+    sb.append(String.format("  Size: %s", SizeFormatter.format(result.slimJreSize())));
+    sb.append(String.format(" (%.0f%% smaller than full JDK)\n", result.reductionPercentage()));
+    sb.append("\n");
+
+    // Location
+    sb.append("  Location:\n");
+    sb.append("    ").append(result.jrePath()).append("\n");
+    sb.append("\n");
+
+    // Modules included
+    sb.append(String.format("  Includes %d modules:\n", result.includedModules().size()));
     String moduleList =
         result.includedModules().stream().sorted().collect(Collectors.joining(", "));
-    sb.append(wrapText(moduleList, 48)).append("\n\n");
-
-    sb.append("Duration: ").append(formatDuration(result.duration())).append("\n");
+    sb.append(wrapText(moduleList, 50)).append("\n");
 
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
