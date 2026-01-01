@@ -4,7 +4,6 @@ import com.ghiloufi.slimjre.config.AnalysisResult;
 import com.ghiloufi.slimjre.config.Result;
 import com.ghiloufi.slimjre.config.SlimJreConfig;
 import com.ghiloufi.slimjre.exception.SlimJreException;
-import com.ghiloufi.slimjre.gui.components.ActionPanel;
 import com.ghiloufi.slimjre.gui.components.ConfigurationPanel;
 import com.ghiloufi.slimjre.gui.components.JarSelectionPanel;
 import com.ghiloufi.slimjre.gui.components.ResultsPanel;
@@ -35,7 +34,6 @@ public class MainFrame extends JFrame {
   private final JarSelectionPanel jarSelectionPanel;
   private final ConfigurationPanel configurationPanel;
   private final ResultsPanel resultsPanel;
-  private final ActionPanel actionPanel;
   private final GuiPreferences preferences;
 
   private SwingWorker<?, ?> currentWorker;
@@ -67,7 +65,6 @@ public class MainFrame extends JFrame {
     jarSelectionPanel = new JarSelectionPanel();
     configurationPanel = new ConfigurationPanel();
     resultsPanel = new ResultsPanel();
-    actionPanel = new ActionPanel();
 
     // Apply preferences to configuration panel
     configurationPanel.applyPreferences(preferences);
@@ -122,7 +119,7 @@ public class MainFrame extends JFrame {
     // Top: JAR selection
     jarSelectionPanel.setBorder(
         BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "JAR Files"));
-    jarSelectionPanel.setPreferredSize(new Dimension(0, 180));
+    jarSelectionPanel.setPreferredSize(new Dimension(0, 230));
     contentPane.add(jarSelectionPanel, BorderLayout.NORTH);
 
     // Center: Configuration + Results in a split pane
@@ -138,9 +135,6 @@ public class MainFrame extends JFrame {
     centerSplit.setLeftComponent(configurationPanel);
     centerSplit.setRightComponent(resultsPanel);
     contentPane.add(centerSplit, BorderLayout.CENTER);
-
-    // Bottom: Actions
-    contentPane.add(actionPanel, BorderLayout.SOUTH);
 
     setContentPane(contentPane);
   }
@@ -188,11 +182,11 @@ public class MainFrame extends JFrame {
     // JAR selection changes
     jarSelectionPanel.addChangeListener(e -> updateState());
 
-    // Analyze button
-    actionPanel.setAnalyzeAction(e -> runAnalysis());
+    // Analyze button (now in JAR selection panel)
+    jarSelectionPanel.setAnalyzeAction(e -> runAnalysis());
 
-    // Create JRE button
-    actionPanel.setCreateJreAction(e -> runCreateJre());
+    // Create JRE button (now in JAR selection panel)
+    jarSelectionPanel.setCreateJreAction(e -> runCreateJre());
   }
 
   private void setupKeyboardShortcuts() {
@@ -233,7 +227,7 @@ public class MainFrame extends JFrame {
           }
         });
 
-    // Escape - Cancel current operation (if possible) or clear selection
+    // Escape - Cancel current operation (if possible)
     inputMap.put(KeyStroke.getKeyStroke("ESCAPE"), "cancel");
     actionMap.put(
         "cancel",
@@ -242,7 +236,6 @@ public class MainFrame extends JFrame {
           public void actionPerformed(java.awt.event.ActionEvent e) {
             if (currentWorker != null && !currentWorker.isDone()) {
               currentWorker.cancel(true);
-              actionPanel.setProgress(0, "Cancelled");
               updateState();
             }
           }
@@ -254,8 +247,8 @@ public class MainFrame extends JFrame {
     boolean hasJars = !jars.isEmpty();
     boolean isRunning = currentWorker != null && !currentWorker.isDone();
 
-    actionPanel.setAnalyzeEnabled(hasJars && !isRunning);
-    actionPanel.setCreateJreEnabled(hasJars && !isRunning);
+    jarSelectionPanel.setAnalyzeEnabled(hasJars && !isRunning);
+    jarSelectionPanel.setCreateJreEnabled(hasJars && !isRunning);
   }
 
   private void runAnalysis() {
@@ -264,10 +257,9 @@ public class MainFrame extends JFrame {
       return;
     }
 
-    // Disable buttons and show progress
-    actionPanel.setAnalyzeEnabled(false);
-    actionPanel.setCreateJreEnabled(false);
-    actionPanel.setProgress(0, "Starting analysis...");
+    // Disable buttons during analysis
+    jarSelectionPanel.setAnalyzeEnabled(false);
+    jarSelectionPanel.setCreateJreEnabled(false);
     resultsPanel.clear();
 
     // Create and run worker - all scanners enabled by default
@@ -275,11 +267,7 @@ public class MainFrame extends JFrame {
 
     worker.addPropertyChangeListener(
         evt -> {
-          if ("progress".equals(evt.getPropertyName())) {
-            AnalysisWorker.ProgressUpdate update =
-                (AnalysisWorker.ProgressUpdate) evt.getNewValue();
-            actionPanel.setProgress(update.percent(), update.message());
-          } else if ("state".equals(evt.getPropertyName())
+          if ("state".equals(evt.getPropertyName())
               && SwingWorker.StateValue.DONE.equals(evt.getNewValue())) {
             onAnalysisComplete(worker);
           }
@@ -294,8 +282,6 @@ public class MainFrame extends JFrame {
       AnalysisResult result = worker.get();
       lastAnalysisResult = result;
       resultsPanel.displayAnalysisResult(result);
-      actionPanel.setProgress(
-          100, "Analysis complete - " + result.allModules().size() + " modules detected");
     } catch (Exception e) {
       Throwable cause = e.getCause();
       if (cause instanceof SlimJreException) {
@@ -303,7 +289,6 @@ public class MainFrame extends JFrame {
       } else {
         ErrorDialog.show(this, "Analysis Error", (Exception) (cause != null ? cause : e));
       }
-      actionPanel.setProgress(0, "Analysis failed");
       lastAnalysisResult = null;
     } finally {
       currentWorker = null;
@@ -327,21 +312,16 @@ public class MainFrame extends JFrame {
       return;
     }
 
-    // Disable buttons and show progress
-    actionPanel.setAnalyzeEnabled(false);
-    actionPanel.setCreateJreEnabled(false);
-    actionPanel.setProgress(0, "Starting JRE creation...");
+    // Disable buttons during JRE creation
+    jarSelectionPanel.setAnalyzeEnabled(false);
+    jarSelectionPanel.setCreateJreEnabled(false);
 
     // Create and run worker
     CreateJreWorker worker = new CreateJreWorker(config);
 
     worker.addPropertyChangeListener(
         evt -> {
-          if ("progress".equals(evt.getPropertyName())) {
-            CreateJreWorker.ProgressUpdate update =
-                (CreateJreWorker.ProgressUpdate) evt.getNewValue();
-            actionPanel.setProgress(update.percent(), update.message());
-          } else if ("state".equals(evt.getPropertyName())
+          if ("state".equals(evt.getPropertyName())
               && SwingWorker.StateValue.DONE.equals(evt.getNewValue())) {
             onCreateJreComplete(worker);
           }
@@ -355,7 +335,6 @@ public class MainFrame extends JFrame {
     try {
       Result result = worker.get();
       resultsPanel.displayCreationResult(result);
-      actionPanel.setProgress(100, "JRE created successfully!");
 
       // Offer to open output folder
       int choice =
@@ -383,7 +362,6 @@ public class MainFrame extends JFrame {
       } else {
         ErrorDialog.show(this, "JRE Creation Error", (Exception) (cause != null ? cause : e));
       }
-      actionPanel.setProgress(0, "JRE creation failed");
     } finally {
       currentWorker = null;
       updateState();

@@ -4,6 +4,7 @@ import com.ghiloufi.slimjre.gui.util.SizeFormatter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.*;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +34,8 @@ public class JarSelectionPanel extends JPanel {
   private final DefaultListModel<JarEntry> jarListModel;
   private final JList<JarEntry> jarList;
   private final List<ChangeListener> changeListeners;
+  private final JButton analyzeButton;
+  private final JButton createJreButton;
   private Path lastDirectory;
 
   /** Creates a new JAR selection panel. */
@@ -41,6 +44,8 @@ public class JarSelectionPanel extends JPanel {
     this.jarListModel = new DefaultListModel<>();
     this.jarList = new JList<>(jarListModel);
     this.changeListeners = new ArrayList<>();
+    this.analyzeButton = new JButton("Analyze");
+    this.createJreButton = new JButton("Create JRE");
     this.lastDirectory = Path.of(System.getProperty("user.home"));
 
     initializeComponents();
@@ -77,23 +82,33 @@ public class JarSelectionPanel extends JPanel {
     addFolderButton.setMaximumSize(new Dimension(120, 28));
     addFolderButton.addActionListener(e -> showAddFolderDialog());
 
-    JButton removeButton = new JButton("Remove");
-    removeButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-    removeButton.setMaximumSize(new Dimension(120, 28));
-    removeButton.addActionListener(e -> removeSelected());
-
     JButton clearButton = new JButton("Clear All");
     clearButton.setAlignmentX(Component.CENTER_ALIGNMENT);
     clearButton.setMaximumSize(new Dimension(120, 28));
     clearButton.addActionListener(e -> clearAll());
 
+    // Action buttons (Analyze, Create JRE)
+    analyzeButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+    analyzeButton.setMaximumSize(new Dimension(120, 32));
+    analyzeButton.setFont(analyzeButton.getFont().deriveFont(Font.BOLD));
+    analyzeButton.setToolTipText("Analyze JARs to detect required modules (Ctrl+A)");
+
+    createJreButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+    createJreButton.setMaximumSize(new Dimension(120, 32));
+    createJreButton.setFont(createJreButton.getFont().deriveFont(Font.BOLD));
+    createJreButton.setToolTipText("Create a minimal JRE with detected modules (Ctrl+Enter)");
+
     buttonPanel.add(addJarButton);
     buttonPanel.add(Box.createVerticalStrut(5));
     buttonPanel.add(addFolderButton);
-    buttonPanel.add(Box.createVerticalStrut(15));
-    buttonPanel.add(removeButton);
     buttonPanel.add(Box.createVerticalStrut(5));
     buttonPanel.add(clearButton);
+    buttonPanel.add(Box.createVerticalStrut(15));
+    buttonPanel.add(new JSeparator(SwingConstants.HORIZONTAL));
+    buttonPanel.add(Box.createVerticalStrut(10));
+    buttonPanel.add(analyzeButton);
+    buttonPanel.add(Box.createVerticalStrut(5));
+    buttonPanel.add(createJreButton);
     buttonPanel.add(Box.createVerticalGlue());
 
     add(buttonPanel, BorderLayout.EAST);
@@ -320,6 +335,50 @@ public class JarSelectionPanel extends JPanel {
     for (ChangeListener listener : changeListeners) {
       listener.stateChanged(event);
     }
+  }
+
+  // === Action button methods ===
+
+  /**
+   * Sets the action listener for the Analyze button.
+   *
+   * @param listener the action listener
+   */
+  public void setAnalyzeAction(ActionListener listener) {
+    for (ActionListener al : analyzeButton.getActionListeners()) {
+      analyzeButton.removeActionListener(al);
+    }
+    analyzeButton.addActionListener(listener);
+  }
+
+  /**
+   * Sets the action listener for the Create JRE button.
+   *
+   * @param listener the action listener
+   */
+  public void setCreateJreAction(ActionListener listener) {
+    for (ActionListener al : createJreButton.getActionListeners()) {
+      createJreButton.removeActionListener(al);
+    }
+    createJreButton.addActionListener(listener);
+  }
+
+  /**
+   * Enables or disables the Analyze button.
+   *
+   * @param enabled true to enable
+   */
+  public void setAnalyzeEnabled(boolean enabled) {
+    analyzeButton.setEnabled(enabled);
+  }
+
+  /**
+   * Enables or disables the Create JRE button.
+   *
+   * @param enabled true to enable
+   */
+  public void setCreateJreEnabled(boolean enabled) {
+    createJreButton.setEnabled(enabled);
   }
 
   /** Represents a JAR file entry with its path and size. */
