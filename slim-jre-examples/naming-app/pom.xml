@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ghiloufi</groupId>
+        <artifactId>slim-jre-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>naming-app</artifactId>
+    <packaging>jar</packaging>
+
+    <name>JNDI Naming App Example</name>
+    <description>Tests java.naming module detection with JNDI patterns</description>
+
+    <!--
+    EXPECTED MODULES (Ground Truth):
+    - java.base (always)
+    - java.naming (javax.naming.*)
+
+    SCANNER COVERAGE:
+    - ApiUsageScanner: Should detect javax.naming.* usage
+    - jdeps: Should detect javax.naming.* imports
+    - ReflectionBytecodeScanner: May detect InitialContext reflection patterns
+    -->
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.ghiloufi.example.naming.NamingApp</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.ghiloufi</groupId>
+                <artifactId>slim-jre-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>create-jre</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

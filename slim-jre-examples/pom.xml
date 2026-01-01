@@ -17,16 +17,34 @@
     <description>Example projects demonstrating Slim JRE usage</description>
 
     <modules>
+        <!-- Basic examples -->
         <module>simple-app</module>
         <module>http-client-app</module>
         <module>logging-app</module>
         <module>file-processing-app</module>
+
+        <!-- Framework examples -->
         <module>spring-boot-hello</module>
         <module>quarkus-hello</module>
         <module>micronaut-hello</module>
         <module>microprofile-hello</module>
+
+        <!-- Scanner-specific examples -->
         <module>locale-app</module>
         <module>zipfs-app</module>
         <module>jmx-app</module>
+
+        <!-- Accuracy test examples (test companion) -->
+        <module>reflection-app</module>
+        <module>sql-app</module>
+        <module>xml-app</module>
+        <module>scripting-app</module>
+        <module>prefs-app</module>
+        <module>naming-app</module>
+        <module>rmi-app</module>
+        <module>desktop-app</module>
+        <module>compiler-app</module>
+        <module>instrument-app</module>
+        <module>mixed-patterns-app</module>
     </modules>
 </project>

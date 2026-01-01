@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ghiloufi</groupId>
+        <artifactId>slim-jre-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sql-app</artifactId>
+    <packaging>jar</packaging>
+
+    <name>SQL App Example</name>
+    <description>Tests java.sql module detection with JDBC patterns</description>
+
+    <!--
+    EXPECTED MODULES (Ground Truth):
+    - java.base (always)
+    - java.sql (DriverManager, Connection, Statement, ResultSet)
+    - java.logging (SQLException logging)
+
+    SCANNER COVERAGE:
+    - ApiUsageScanner: Should detect java.sql.* usage
+    - jdeps: Should detect java.sql.* imports
+    - ReflectionBytecodeScanner: May detect driver loading patterns
+    -->
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.ghiloufi.example.sql.SqlApp</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.ghiloufi</groupId>
+                <artifactId>slim-jre-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>create-jre</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

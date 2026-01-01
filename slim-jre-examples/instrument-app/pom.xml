@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ghiloufi</groupId>
+        <artifactId>slim-jre-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>instrument-app</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Instrument App Example</name>
+    <description>Tests java.instrument module detection with Instrumentation API</description>
+
+    <!--
+    EXPECTED MODULES (Ground Truth):
+    - java.base (always)
+    - java.instrument (java.lang.instrument.*)
+
+    SCANNER COVERAGE:
+    - ApiUsageScanner: Should detect java.lang.instrument.* usage
+    - jdeps: Should detect java.lang.instrument.* imports
+    -->
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.ghiloufi.example.instrument.InstrumentApp</mainClass>
+                        </manifest>
+                        <manifestEntries>
+                            <Premain-Class>com.ghiloufi.example.instrument.InstrumentApp</Premain-Class>
+                            <Agent-Class>com.ghiloufi.example.instrument.InstrumentApp</Agent-Class>
+                            <Can-Redefine-Classes>true</Can-Redefine-Classes>
+                            <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.ghiloufi</groupId>
+                <artifactId>slim-jre-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>create-jre</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

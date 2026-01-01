@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ghiloufi</groupId>
+        <artifactId>slim-jre-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>mixed-patterns-app</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Mixed Patterns App Example</name>
+    <description>Tests multiple scanner detection patterns in combination</description>
+
+    <!--
+    EXPECTED MODULES (Ground Truth):
+    - java.base (always)
+    - java.sql (JDBC via reflection)
+    - java.naming (JNDI via reflection)
+    - java.logging (static import)
+    - java.xml (static import)
+    - java.net.http (static import + crypto)
+    - jdk.crypto.ec (HTTP/HTTPS usage)
+    - jdk.zipfs (ZipFS usage)
+    - java.management (JMX static import)
+
+    SCANNER COVERAGE:
+    - ReflectionBytecodeScanner: Should detect Class.forName patterns
+    - ApiUsageScanner: Should detect static imports
+    - CryptoModuleScanner: Should detect HTTPS usage
+    - ZipFsModuleScanner: Should detect FileSystems.newFileSystem
+    - JmxModuleScanner: Should detect JMX patterns
+    - jdeps: Should detect static imports
+    -->
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.ghiloufi.example.mixed.MixedPatternsApp</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.ghiloufi</groupId>
+                <artifactId>slim-jre-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>create-jre</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
