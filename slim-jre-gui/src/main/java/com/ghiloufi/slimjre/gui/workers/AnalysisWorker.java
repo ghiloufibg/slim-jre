@@ -12,6 +12,9 @@ import javax.swing.SwingWorker;
  * <p>Runs the SlimJre analysis in a background thread and publishes progress updates to the EDT.
  * Uses property change listeners to communicate results.
  *
+ * <p>All scanners (jdeps, service loaders, reflection, API usage, GraalVM metadata, crypto, locale,
+ * zipfs, jmx) are enabled by default without user configuration.
+ *
  * <p>Properties fired:
  *
  * <ul>
@@ -22,20 +25,16 @@ import javax.swing.SwingWorker;
 public class AnalysisWorker extends SwingWorker<AnalysisResult, AnalysisWorker.ProgressUpdate> {
 
   private final List<Path> jars;
-  private final boolean scanServiceLoaders;
-  private final boolean scanGraalVmMetadata;
 
   /**
    * Creates a new analysis worker.
    *
+   * <p>All scanners are enabled by default for comprehensive module detection.
+   *
    * @param jars list of JAR files to analyze
-   * @param scanServiceLoaders whether to scan service loader files
-   * @param scanGraalVmMetadata whether to scan GraalVM metadata
    */
-  public AnalysisWorker(List<Path> jars, boolean scanServiceLoaders, boolean scanGraalVmMetadata) {
+  public AnalysisWorker(List<Path> jars) {
     this.jars = List.copyOf(jars);
-    this.scanServiceLoaders = scanServiceLoaders;
-    this.scanGraalVmMetadata = scanGraalVmMetadata;
   }
 
   @Override
@@ -48,12 +47,16 @@ public class AnalysisWorker extends SwingWorker<AnalysisResult, AnalysisWorker.P
 
     // The core library handles parallel execution internally
     // We simulate progress stages for better UX
-    publish(new ProgressUpdate(30, "Scanning for service loaders..."));
-    publish(new ProgressUpdate(50, "Detecting reflection patterns..."));
-    publish(new ProgressUpdate(65, "Analyzing API usage..."));
-    publish(new ProgressUpdate(80, "Scanning GraalVM metadata..."));
+    publish(new ProgressUpdate(25, "Scanning for service loaders..."));
+    publish(new ProgressUpdate(40, "Detecting reflection patterns..."));
+    publish(new ProgressUpdate(50, "Analyzing API usage..."));
+    publish(new ProgressUpdate(60, "Scanning GraalVM metadata..."));
+    publish(new ProgressUpdate(70, "Detecting crypto/SSL usage..."));
+    publish(new ProgressUpdate(80, "Scanning locale/i18n patterns..."));
+    publish(new ProgressUpdate(85, "Checking ZipFS and JMX usage..."));
 
-    AnalysisResult result = slimJre.analyzeOnly(jars, scanServiceLoaders, scanGraalVmMetadata);
+    // All scanners enabled by default - uses analyzeOnly(jars) which defaults to true for all
+    AnalysisResult result = slimJre.analyzeOnly(jars);
 
     publish(new ProgressUpdate(95, "Compiling results..."));
 

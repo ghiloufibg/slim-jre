@@ -244,7 +244,16 @@ public class JarSelectionPanel extends JPanel {
   }
 
   /**
-   * Adds all JAR files from a directory.
+   * Adds all JAR files from a directory recursively.
+   *
+   * <p>Scans subdirectories to find all JARs, which is important for:
+   *
+   * <ul>
+   *   <li>Maven target folders (target/, target/lib/, target/dependency/)
+   *   <li>Gradle build folders (build/libs/, build/dependencies/)
+   *   <li>Quarkus apps (target/quarkus-app/lib/)
+   *   <li>Spring Boot fat JARs with extracted dependencies
+   * </ul>
    *
    * @param directory path to the directory
    */
@@ -253,7 +262,7 @@ public class JarSelectionPanel extends JPanel {
       return;
     }
 
-    try (Stream<Path> stream = Files.list(directory)) {
+    try (Stream<Path> stream = Files.walk(directory)) {
       stream
           .filter(p -> p.toString().toLowerCase().endsWith(".jar"))
           .filter(Files::isRegularFile)
