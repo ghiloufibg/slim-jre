@@ -29,6 +29,10 @@
         <module>micronaut-hello</module>
         <module>microprofile-hello</module>
 
+        <!-- Enterprise framework examples (accuracy test) -->
+        <module>spring-boot-enterprise</module>
+        <module>quarkus-enterprise</module>
+
         <!-- Scanner-specific examples -->
         <module>locale-app</module>
         <module>zipfs-app</module>

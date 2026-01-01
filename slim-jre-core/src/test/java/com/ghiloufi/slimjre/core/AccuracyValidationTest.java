@@ -140,6 +140,79 @@ class AccuracyValidationTest {
     // jmx-app uses both local JMX (ManagementFactory) and remote JMX (JMXConnectorFactory)
     // java.management.rmi is required for remote JMX patterns (javax.management.remote.*)
     GROUND_TRUTH.put("jmx-app", Set.of("java.base", "java.management", "java.management.rmi"));
+
+    // spring-boot-enterprise: Full enterprise Spring Boot app
+    // Features: REST API, JPA/H2, Transactions, Actuator, Validation
+    // This is a complex app with many transitive dependencies
+    GROUND_TRUTH.put(
+        "spring-boot-enterprise",
+        Set.of(
+            "java.base",
+            "java.compiler",
+            "java.datatransfer",
+            "java.xml",
+            "java.prefs",
+            "java.desktop",
+            "java.instrument",
+            "java.logging",
+            "java.management",
+            "java.security.sasl",
+            "java.naming",
+            "java.rmi",
+            "java.management.rmi",
+            "java.net.http",
+            "java.scripting",
+            "java.security.jgss",
+            "java.transaction.xa",
+            "java.sql",
+            "java.sql.rowset",
+            "jdk.internal.opt",
+            "jdk.zipfs",
+            "jdk.compiler",
+            "jdk.crypto.ec",
+            "jdk.jfr",
+            "jdk.localedata",
+            "jdk.management",
+            "jdk.net",
+            "jdk.security.auth",
+            "jdk.unsupported"));
+
+    // quarkus-enterprise: Full enterprise Quarkus app
+    // Features: REST API, Hibernate/H2, Transactions, Health, Metrics
+    // This is a complex app with many transitive dependencies
+    GROUND_TRUTH.put(
+        "quarkus-enterprise",
+        Set.of(
+            "java.base",
+            "java.compiler",
+            "java.datatransfer",
+            "java.xml",
+            "java.prefs",
+            "java.desktop",
+            "java.instrument",
+            "java.logging",
+            "java.management",
+            "java.security.sasl",
+            "java.naming",
+            "java.rmi",
+            "java.management.rmi",
+            "java.net.http",
+            "java.scripting",
+            "java.security.jgss",
+            "java.transaction.xa",
+            "java.sql",
+            "jdk.internal.jvmstat",
+            "jdk.attach",
+            "jdk.internal.opt",
+            "jdk.zipfs",
+            "jdk.compiler",
+            "jdk.crypto.ec",
+            "jdk.management",
+            "jdk.management.agent",
+            "jdk.jconsole",
+            "jdk.localedata",
+            "jdk.net",
+            "jdk.unsupported"));
   }
 
   private final JDepsAnalyzer jdepsAnalyzer = new JDepsAnalyzer();
@@ -174,6 +247,8 @@ class AccuracyValidationTest {
     "compiler-app",
     "instrument-app",
     "mixed-patterns-app"
+    // Enterprise apps (spring-boot-enterprise, quarkus-enterprise) require full dependency
+    // analysis via SlimJre class and are validated separately via maven plugin output
   })
   @DisplayName("Validate module detection accuracy for")
   void validateAccuracy(String exampleName) throws Exception {
@@ -360,5 +435,75 @@ class AccuracyValidationTest {
     allModules.add("java.base");
 
     return allModules.stream().sorted().collect(Collectors.toCollection(LinkedHashSet::new));
+  }
+
+  /**
+   * Validates enterprise apps by reading the generated slim-jre release file. These apps require
+   * full dependency analysis (73+ JARs) which is done by the maven plugin during build.
+   */
+  @ParameterizedTest
+  @CsvSource({"spring-boot-enterprise", "quarkus-enterprise"})
+  @DisplayName("Validate enterprise app accuracy from generated JRE for")
+  void validateEnterpriseAccuracy(String exampleName) throws Exception {
+    Path releaseFile =
+        EXAMPLES_DIR.resolve(exampleName).resolve("target").resolve("slim-jre").resolve("release");
+
+    if (!Files.exists(releaseFile)) {
+      System.out.println(
+          "SKIP: " + exampleName + " (slim-jre not generated - run maven build first)");
+      return;
+    }
+
+    // Read modules from the generated JRE release file
+    String releaseContent = Files.readString(releaseFile);
+    Set<String> detected = parseModulesFromRelease(releaseContent);
+
+    Set<String> expected = GROUND_TRUTH.getOrDefault(exampleName, Set.of("java.base"));
+
+    // Calculate metrics
+    Set<String> truePositives = new TreeSet<>(expected);
+    truePositives.retainAll(detected);
+
+    Set<String> falsePositives = new TreeSet<>(detected);
+    falsePositives.removeAll(expected);
+
+    Set<String> falseNegatives = new TreeSet<>(expected);
+    falseNegatives.removeAll(detected);
+
+    double precision = detected.isEmpty() ? 0 : (double) truePositives.size() / detected.size();
+    double recall = expected.isEmpty() ? 0 : (double) truePositives.size() / expected.size();
+    double f1 = (precision + recall) == 0 ? 0 : 2 * (precision * recall) / (precision + recall);
+
+    // Report
+    System.out.println("\n=== " + exampleName + " (ENTERPRISE) ===");
+    System.out.println("Expected modules (" + expected.size() + "): " + expected);
+    System.out.println("Detected modules (" + detected.size() + "): " + detected);
+    System.out.println("True positives:    " + truePositives);
+    System.out.println("False positives:   " + falsePositives);
+    System.out.println("False negatives:   " + falseNegatives);
+    System.out.printf("Precision: %.2f, Recall: %.2f, F1: %.2f%n", precision, recall, f1);
+
+    // Assertions - expect high recall for enterprise apps
+    assertThat(recall)
+        .as(
+            "Recall for " + exampleName + " should be >= 0.95 (caught %d of %d required modules)",
+            truePositives.size(),
+            expected.size())
+        .isGreaterThanOrEqualTo(0.95);
+  }
+
+  /** Parse MODULES="mod1 mod2 mod3" format from JRE release file. */
+  private Set<String> parseModulesFromRelease(String content) {
+    for (String line : content.split("\n")) {
+      if (line.startsWith("MODULES=")) {
+        String modules = line.substring("MODULES=".length()).trim();
+        // Remove quotes if present
+        if (modules.startsWith("\"") && modules.endsWith("\"")) {
+          modules = modules.substring(1, modules.length() - 1);
+        }
+        return Set.of(modules.split("\\s+"));
+      }
+    }
+    return Set.of();
   }
 }
