@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 
 /**
  * Panel for displaying analysis and creation results.
@@ -19,19 +17,14 @@ import javax.swing.table.TableRowSorter;
  *
  * <ul>
  *   <li>Summary view with module breakdown statistics for all 9 scanner types
- *   <li>Module table with sorting and filtering
- *   <li>Per-JAR tree view for detailed breakdown
+ *   <li>Unified Modules view combining JAR tree and module table
  * </ul>
  */
 public class ResultsPanel extends JPanel {
 
   private final JTabbedPane tabbedPane;
   private final JTextArea summaryArea;
-  private final JTable moduleTable;
-  private final DefaultTableModel tableModel;
-  private final JTextField filterField;
-  private final TableRowSorter<DefaultTableModel> rowSorter;
-  private final PerJarTreePanel perJarTreePanel;
+  private final ModulesPanel modulesPanel;
 
   /** Creates a new results panel with tabbed display. */
   public ResultsPanel() {
@@ -52,60 +45,9 @@ public class ResultsPanel extends JPanel {
     summaryPanel.add(summaryScroll, BorderLayout.CENTER);
     tabbedPane.addTab("Summary", summaryPanel);
 
-    // Modules tab
-    String[] columns = {"Module", "Source"};
-    tableModel =
-        new DefaultTableModel(columns, 0) {
-          @Override
-          public boolean isCellEditable(int row, int column) {
-            return false;
-          }
-        };
-    moduleTable = new JTable(tableModel);
-    moduleTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
-    moduleTable.getTableHeader().setReorderingAllowed(false);
-
-    // Row sorter for filtering and sorting
-    rowSorter = new TableRowSorter<>(tableModel);
-    moduleTable.setRowSorter(rowSorter);
-
-    // Filter panel
-    JPanel filterPanel = new JPanel(new BorderLayout(5, 0));
-    filterPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-    JLabel filterLabel = new JLabel("Filter:");
-    filterLabel.setPreferredSize(new Dimension(45, 20));
-    filterPanel.add(filterLabel, BorderLayout.WEST);
-    filterField = new JTextField();
-    filterField.addActionListener(e -> applyFilter());
-    filterField
-        .getDocument()
-        .addDocumentListener(
-            new javax.swing.event.DocumentListener() {
-              @Override
-              public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-
-              @Override
-              public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-
-              @Override
-              public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                applyFilter();
-              }
-            });
-    filterPanel.add(filterField, BorderLayout.CENTER);
-
-    JPanel modulesPanel = new JPanel(new BorderLayout());
-    modulesPanel.add(filterPanel, BorderLayout.NORTH);
-    modulesPanel.add(new JScrollPane(moduleTable), BorderLayout.CENTER);
+    // Unified Modules tab (combines old Modules + Per-JAR tabs)
+    modulesPanel = new ModulesPanel();
     tabbedPane.addTab("Modules", modulesPanel);
-
-    // Per-JAR tree view tab
-    perJarTreePanel = new PerJarTreePanel();
-    tabbedPane.addTab("Per-JAR", perJarTreePanel);
 
     add(tabbedPane, BorderLayout.CENTER);
   }
@@ -121,15 +63,6 @@ public class ResultsPanel extends JPanel {
               Or click "Create JRE" to build a minimal
               custom JRE directly.
             """;
-  }
-
-  private void applyFilter() {
-    String text = filterField.getText().trim();
-    if (text.isEmpty()) {
-      rowSorter.setRowFilter(null);
-    } else {
-      rowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
-    }
   }
 
   /**
@@ -203,39 +136,11 @@ public class ResultsPanel extends JPanel {
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
 
-    // Populate module table with all 9 scanner types
-    tableModel.setRowCount(0);
-    addModulesToTable(result.requiredModules(), "jdeps");
-    addModulesToTable(result.serviceLoaderModules(), "service-loader");
-    addModulesToTable(result.reflectionModules(), "reflection");
-    addModulesToTable(result.apiUsageModules(), "api-usage");
-    addModulesToTable(result.graalVmMetadataModules(), "graalvm");
-    addModulesToTable(result.cryptoModules(), "crypto");
-    addModulesToTable(result.localeModules(), "locale");
-    addModulesToTable(result.zipFsModules(), "zipfs");
-    addModulesToTable(result.jmxModules(), "jmx");
-
-    // Update per-JAR tree
-    perJarTreePanel.setData(result);
+    // Update unified modules panel
+    modulesPanel.setData(result);
 
     // Select summary tab
     tabbedPane.setSelectedIndex(0);
-  }
-
-  private void addModulesToTable(Set<String> modules, String source) {
-    for (String module : modules.stream().sorted().toList()) {
-      // Check if already in table (avoid duplicates, keep first source)
-      boolean exists = false;
-      for (int i = 0; i < tableModel.getRowCount(); i++) {
-        if (tableModel.getValueAt(i, 0).equals(module)) {
-          exists = true;
-          break;
-        }
-      }
-      if (!exists) {
-        tableModel.addRow(new Object[] {module, source});
-      }
-    }
   }
 
   /**
@@ -271,11 +176,8 @@ public class ResultsPanel extends JPanel {
     summaryArea.setText(sb.toString());
     summaryArea.setCaretPosition(0);
 
-    // Update module table
-    tableModel.setRowCount(0);
-    for (String module : result.includedModules().stream().sorted().toList()) {
-      tableModel.addRow(new Object[] {module, "included"});
-    }
+    // Clear modules panel (no per-JAR data for creation results)
+    modulesPanel.clear();
 
     // Select summary tab
     tabbedPane.setSelectedIndex(0);
@@ -284,9 +186,7 @@ public class ResultsPanel extends JPanel {
   /** Clears all results from the panel. */
   public void clear() {
     summaryArea.setText(getEmptyStateText());
-    tableModel.setRowCount(0);
-    filterField.setText("");
-    perJarTreePanel.clear();
+    modulesPanel.clear();
   }
 
   private String wrapText(String text, int width) {
