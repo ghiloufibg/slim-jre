@@ -29,6 +29,19 @@
                     </archive>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>com.ghiloufi</groupId>
+                <artifactId>slim-jre-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>create-jre</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
