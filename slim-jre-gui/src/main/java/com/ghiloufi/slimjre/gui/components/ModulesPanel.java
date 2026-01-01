@@ -7,7 +7,6 @@ import java.util.*;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.event.TreeSelectionEvent;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -17,21 +16,10 @@ import javax.swing.tree.TreePath;
 /**
  * Unified panel showing JAR files tree and their modules in a split view.
  *
- * <p>Left side: Tree of JAR files with module counts Right side: Table of modules for selected
- * JAR(s) with source information
+ * <p>Left side: Tree of JAR files with module counts Right side: List of modules for selected
+ * JAR(s)
  */
 public class ModulesPanel extends JPanel {
-
-  // Source colors matching the original PerJarTreePanel
-  private static final Color JDEPS_COLOR = new Color(66, 133, 244);
-  private static final Color SERVICES_COLOR = new Color(52, 168, 83);
-  private static final Color REFLECTION_COLOR = new Color(251, 188, 4);
-  private static final Color API_USAGE_COLOR = new Color(234, 67, 53);
-  private static final Color GRAALVM_COLOR = new Color(154, 160, 166);
-  private static final Color CRYPTO_COLOR = new Color(171, 71, 188);
-  private static final Color LOCALE_COLOR = new Color(0, 150, 136);
-  private static final Color ZIPFS_COLOR = new Color(255, 152, 0);
-  private static final Color JMX_COLOR = new Color(121, 85, 72);
 
   private final JTree jarTree;
   private final DefaultMutableTreeNode rootNode;
@@ -56,8 +44,8 @@ public class ModulesPanel extends JPanel {
     jarTree.setShowsRootHandles(true);
     jarTree.addTreeSelectionListener(this::onTreeSelectionChanged);
 
-    // Initialize modules table (right side)
-    String[] columns = {"Module", "Source", "Scanner Type"};
+    // Initialize modules table (right side) - simple single column
+    String[] columns = {"Module"};
     tableModel =
         new DefaultTableModel(columns, 0) {
           @Override
@@ -69,12 +57,6 @@ public class ModulesPanel extends JPanel {
     moduleTable = new JTable(tableModel);
     moduleTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
     moduleTable.getTableHeader().setReorderingAllowed(false);
-    moduleTable.setDefaultRenderer(Object.class, new ModuleTableCellRenderer());
-
-    // Set column widths
-    moduleTable.getColumnModel().getColumn(0).setPreferredWidth(200);
-    moduleTable.getColumnModel().getColumn(1).setPreferredWidth(100);
-    moduleTable.getColumnModel().getColumn(2).setPreferredWidth(120);
 
     // Build left panel (JAR tree with toolbar)
     JPanel leftPanel = buildLeftPanel();
@@ -143,33 +125,7 @@ public class ModulesPanel extends JPanel {
     tableScroll.setBorder(BorderFactory.createTitledBorder("Modules"));
     panel.add(tableScroll, BorderLayout.CENTER);
 
-    // Legend panel at bottom
-    panel.add(createLegendPanel(), BorderLayout.SOUTH);
-
     return panel;
-  }
-
-  private JPanel createLegendPanel() {
-    JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
-    legend.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
-
-    legend.add(createLegendItem("jdeps", JDEPS_COLOR));
-    legend.add(createLegendItem("services", SERVICES_COLOR));
-    legend.add(createLegendItem("reflection", REFLECTION_COLOR));
-    legend.add(createLegendItem("api-usage", API_USAGE_COLOR));
-    legend.add(createLegendItem("crypto", CRYPTO_COLOR));
-    legend.add(createLegendItem("locale", LOCALE_COLOR));
-    legend.add(createLegendItem("zipfs", ZIPFS_COLOR));
-    legend.add(createLegendItem("jmx", JMX_COLOR));
-
-    return legend;
-  }
-
-  private JLabel createLegendItem(String text, Color color) {
-    JLabel label = new JLabel("● " + text);
-    label.setForeground(color);
-    label.setFont(label.getFont().deriveFont(10f));
-    return label;
   }
 
   private void onTreeSelectionChanged(TreeSelectionEvent e) {
@@ -212,11 +168,9 @@ public class ModulesPanel extends JPanel {
       }
     }
 
-    // Populate table
+    // Populate table with module names only
     for (String module : modulesToShow) {
-      String source = getModuleSource(currentResult, module);
-      String scannerType = formatScannerType(source);
-      tableModel.addRow(new Object[] {module, source, scannerType});
+      tableModel.addRow(new Object[] {module});
     }
 
     updateStatus();
@@ -300,7 +254,7 @@ public class ModulesPanel extends JPanel {
 
   /** Collapses all tree nodes. */
   public void collapseAll() {
-    for (int i = jarTree.getRowCount() - 1; i > 0; i--) {
+    for (int i = jarTree.getRowCount() - 1; i >= 0; i--) {
       jarTree.collapseRow(i);
     }
   }
@@ -308,49 +262,6 @@ public class ModulesPanel extends JPanel {
   /** Selects all JAR nodes (by selecting root). */
   public void selectAllJars() {
     jarTree.setSelectionRow(0);
-  }
-
-  private String getModuleSource(AnalysisResult result, String module) {
-    if (result.requiredModules().contains(module)) return "jdeps";
-    if (result.serviceLoaderModules().contains(module)) return "services";
-    if (result.reflectionModules().contains(module)) return "reflection";
-    if (result.apiUsageModules().contains(module)) return "api-usage";
-    if (result.graalVmMetadataModules().contains(module)) return "graalvm";
-    if (result.cryptoModules().contains(module)) return "crypto";
-    if (result.localeModules().contains(module)) return "locale";
-    if (result.zipFsModules().contains(module)) return "zipfs";
-    if (result.jmxModules().contains(module)) return "jmx";
-    return "unknown";
-  }
-
-  private String formatScannerType(String source) {
-    return switch (source) {
-      case "jdeps" -> "Static Analysis";
-      case "services" -> "Service Loader";
-      case "reflection" -> "Reflection Pattern";
-      case "api-usage" -> "API Usage";
-      case "graalvm" -> "GraalVM Metadata";
-      case "crypto" -> "Crypto/SSL/TLS";
-      case "locale" -> "Locale/i18n";
-      case "zipfs" -> "ZipFS";
-      case "jmx" -> "JMX Remote";
-      default -> source;
-    };
-  }
-
-  private Color getSourceColor(String source) {
-    return switch (source) {
-      case "jdeps" -> JDEPS_COLOR;
-      case "services" -> SERVICES_COLOR;
-      case "reflection" -> REFLECTION_COLOR;
-      case "api-usage" -> API_USAGE_COLOR;
-      case "graalvm" -> GRAALVM_COLOR;
-      case "crypto" -> CRYPTO_COLOR;
-      case "locale" -> LOCALE_COLOR;
-      case "zipfs" -> ZIPFS_COLOR;
-      case "jmx" -> JMX_COLOR;
-      default -> UIManager.getColor("Table.foreground");
-    };
   }
 
   /** Node representing a JAR file. */
@@ -386,28 +297,6 @@ public class ModulesPanel extends JPanel {
           setIcon(UIManager.getIcon("FileView.directoryIcon"));
           setFont(getFont().deriveFont(Font.BOLD));
         }
-      }
-
-      return this;
-    }
-  }
-
-  /** Custom table cell renderer with colored source column. */
-  private class ModuleTableCellRenderer extends DefaultTableCellRenderer {
-    @Override
-    public Component getTableCellRendererComponent(
-        JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-
-      super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-      // Get the source value for this row
-      int modelRow = table.convertRowIndexToModel(row);
-      String source = (String) tableModel.getValueAt(modelRow, 1);
-
-      if (!isSelected && (column == 1 || column == 2)) {
-        setForeground(getSourceColor(source));
-      } else if (!isSelected) {
-        setForeground(UIManager.getColor("Table.foreground"));
       }
 
       return this;
