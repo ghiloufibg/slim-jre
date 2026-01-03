@@ -19,11 +19,12 @@ import org.junit.jupiter.api.Test;
 /**
  * Accuracy Validation Test for Slim JRE Module Detection.
  *
- * <p>This test compares detected modules against the expected modules defined in each example's
- * required-modules.txt file and reports any mismatches. The test always passes but logs warnings
- * for investigation.
+ * <p>This test compares the modules in the created slim-jre (from {@code target/slim-jre/release})
+ * against the expected modules defined in each example's {@code required-modules.txt} file. Reports
+ * any mismatches for investigation. The test always passes but logs warnings.
  *
- * <p>Run after building examples: {@code mvn clean package -f slim-jre-examples/<example>/pom.xml}
+ * <p>Prerequisites: Build all examples first with {@code mvn clean package -f
+ * slim-jre-examples/pom.xml}
  */
 @DisplayName("Scanner Accuracy Validation")
 class AccuracyValidationTest {
@@ -68,10 +69,10 @@ class AccuracyValidationTest {
           continue;
         }
 
-        // Analyze with SlimJre
-        Set<String> detected = analyzeWithSlimJre(name, targetDir);
+        // Read modules from slim-jre release file (produced by maven plugin)
+        Set<String> detected = readModulesFromRelease(targetDir);
         if (detected.isEmpty()) {
-          printSkipped(name, "not built or analysis failed");
+          printSkipped(name, "slim-jre not created (run mvn package first)");
           skipped++;
           continue;
         }
@@ -225,44 +226,45 @@ class AccuracyValidationTest {
     }
   }
 
-  private Set<String> analyzeWithSlimJre(String exampleName, Path targetDir) {
-    try {
-      List<Path> jars = collectJars(targetDir, exampleName);
-      if (jars.isEmpty()) {
-        return Set.of();
-      }
-      var result = SlimJre.builder().jars(jars).analyze();
-      return new TreeSet<>(result.allModules());
-    } catch (Exception e) {
+  /**
+   * Reads the modules from the slim-jre release file produced by the maven plugin.
+   *
+   * <p>The release file format is:
+   *
+   * <pre>
+   * JAVA_VERSION="21.0.8"
+   * MODULES="java.base java.logging java.sql"
+   * </pre>
+   *
+   * @param targetDir the target directory containing slim-jre/release
+   * @return set of module names, or empty set if release file doesn't exist
+   */
+  private Set<String> readModulesFromRelease(Path targetDir) {
+    Path releaseFile = targetDir.resolve("slim-jre/release");
+    if (!Files.exists(releaseFile)) {
       return Set.of();
     }
-  }
 
-  private List<Path> collectJars(Path targetDir, String exampleName) {
-    List<Path> jars = new ArrayList<>();
-    if (!Files.exists(targetDir)) {
-      return jars;
-    }
-
-    // Main JAR
-    Path mainJar = targetDir.resolve(exampleName + "-1.0.0-SNAPSHOT.jar");
-    if (Files.exists(mainJar)) {
-      jars.add(mainJar);
-    }
-
-    // Dependency directories
-    for (String depDir : List.of("dependency", "libs")) {
-      Path dir = targetDir.resolve(depDir);
-      if (Files.exists(dir) && Files.isDirectory(dir)) {
-        try (Stream<Path> depJars = Files.list(dir)) {
-          depJars.filter(p -> p.toString().endsWith(".jar")).forEach(jars::add);
-        } catch (IOException e) {
-          // Continue with main JAR only
+    try {
+      for (String line : Files.readAllLines(releaseFile)) {
+        if (line.startsWith("MODULES=")) {
+          // Extract value between quotes: MODULES="mod1 mod2 mod3"
+          String value = line.substring("MODULES=".length()).trim();
+          if (value.startsWith("\"") && value.endsWith("\"")) {
+            value = value.substring(1, value.length() - 1);
+          }
+          // Split by space and collect
+          return Arrays.stream(value.split("\\s+"))
+              .map(String::trim)
+              .filter(s -> !s.isEmpty())
+              .collect(Collectors.toCollection(TreeSet::new));
         }
       }
+    } catch (IOException e) {
+      // Fall through to return empty set
     }
 
-    return jars;
+    return Set.of();
   }
 
   private Set<String> difference(Set<String> a, Set<String> b) {
