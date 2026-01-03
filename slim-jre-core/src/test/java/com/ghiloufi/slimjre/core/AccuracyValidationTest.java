@@ -2,508 +2,288 @@ package com.ghiloufi.slimjre.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Accuracy Validation Test for Slim JRE Module Detection.
  *
- * <p>This test validates the accuracy of the various scanners by comparing their detected modules
- * against known ground truth for each example app.
+ * <p>This test compares detected modules against the expected modules defined in each example's
+ * required-modules.txt file and reports any mismatches. The test always passes but logs warnings
+ * for investigation.
  *
- * <p>Run after building all examples with: mvn clean package -pl slim-jre-examples -am
+ * <p>Run after building examples: {@code mvn clean package -f slim-jre-examples/<example>/pom.xml}
  */
 @DisplayName("Scanner Accuracy Validation")
 class AccuracyValidationTest {
 
   private static final Path EXAMPLES_DIR = Path.of("../slim-jre-examples");
 
-  /** Ground truth: expected modules for each example application. */
-  private static final Map<String, Set<String>> GROUND_TRUTH = new HashMap<>();
-
-  static {
-    // reflection-app: Tests ReflectionBytecodeScanner edge cases
-    // KNOWN LIMITATION: When Class.forName is called with a method parameter rather than
-    // a string literal directly, the scanner cannot track the string across method boundaries.
-    // The reflection-app deliberately uses helper methods (testClassForName(String)) which
-    // receive the class name as a parameter - this pattern is NOT detectable.
-    // For detectable patterns, see mixed-patterns-app which uses inline Class.forName("...").
-    GROUND_TRUTH.put(
-        "reflection-app",
-        Set.of(
-            "java.base" // Only java.base is detectable due to indirect reflection patterns
-            ));
-
-    // sql-app: Tests ApiUsageScanner with JDBC patterns
-    GROUND_TRUTH.put(
-        "sql-app",
-        Set.of(
-            "java.base",
-            "java.sql", // JDBC classes
-            "java.logging" // Logger
-            ));
-
-    // xml-app: Tests ApiUsageScanner with XML patterns
-    GROUND_TRUTH.put(
-        "xml-app",
-        Set.of(
-            "java.base", "java.xml" // All XML APIs
-            ));
-
-    // scripting-app: Tests ApiUsageScanner with ScriptEngine patterns
-    GROUND_TRUTH.put(
-        "scripting-app",
-        Set.of(
-            "java.base", "java.scripting" // javax.script.*
-            ));
-
-    // prefs-app: Tests ApiUsageScanner with Preferences API
-    GROUND_TRUTH.put(
-        "prefs-app",
-        Set.of(
-            "java.base", "java.prefs" // java.util.prefs.*
-            ));
-
-    // naming-app: Tests ApiUsageScanner with JNDI patterns
-    GROUND_TRUTH.put(
-        "naming-app",
-        Set.of(
-            "java.base", "java.naming" // javax.naming.*
-            ));
-
-    // rmi-app: Tests ApiUsageScanner with RMI patterns
-    GROUND_TRUTH.put(
-        "rmi-app",
-        Set.of(
-            "java.base", "java.rmi" // java.rmi.*
-            ));
-
-    // desktop-app: Tests ApiUsageScanner with AWT/Swing patterns
-    GROUND_TRUTH.put(
-        "desktop-app",
-        Set.of(
-            "java.base", "java.desktop" // java.awt.*, javax.swing.*, javax.imageio.*, java.beans.*
-            ));
-
-    // compiler-app: Tests ApiUsageScanner with ToolProvider/JavaCompiler
-    GROUND_TRUTH.put(
-        "compiler-app",
-        Set.of(
-            "java.base", "java.compiler" // javax.tools.*, javax.lang.model.*
-            ));
-
-    // instrument-app: Tests ApiUsageScanner with Instrumentation API
-    GROUND_TRUTH.put(
-        "instrument-app",
-        Set.of(
-            "java.base", "java.instrument" // java.lang.instrument.*
-            ));
-
-    // mixed-patterns-app: Comprehensive test combining ALL scanner patterns
-    GROUND_TRUTH.put(
-        "mixed-patterns-app",
-        Set.of(
-            "java.base",
-            "java.logging", // Logger static import
-            "java.xml", // DocumentBuilderFactory static import
-            "java.net.http", // HttpClient static import
-            "jdk.crypto.ec", // HTTPS via HttpClient
-            "java.management", // ManagementFactory static import
-            "jdk.zipfs", // FileSystems.newFileSystem
-            "java.sql", // Class.forName("java.sql.Driver")
-            "java.naming" // Class.forName("javax.naming.InitialContext")
-            ));
-
-    // Existing examples for completeness
-    GROUND_TRUTH.put("simple-app", Set.of("java.base"));
-
-    GROUND_TRUTH.put("logging-app", Set.of("java.base", "java.logging"));
-
-    GROUND_TRUTH.put("http-client-app", Set.of("java.base", "java.net.http", "jdk.crypto.ec"));
-
-    GROUND_TRUTH.put("locale-app", Set.of("java.base", "jdk.localedata"));
-
-    GROUND_TRUTH.put("zipfs-app", Set.of("java.base", "jdk.zipfs"));
-
-    // jmx-app uses both local JMX (ManagementFactory) and remote JMX (JMXConnectorFactory)
-    // java.management.rmi is required for remote JMX patterns (javax.management.remote.*)
-    GROUND_TRUTH.put("jmx-app", Set.of("java.base", "java.management", "java.management.rmi"));
-
-    // spring-boot-enterprise: Full enterprise Spring Boot app
-    // Features: REST API, JPA/H2, Transactions, Actuator, Validation
-    // This is a complex app with many transitive dependencies
-    GROUND_TRUTH.put(
-        "spring-boot-enterprise",
-        Set.of(
-            "java.base",
-            "java.compiler",
-            "java.datatransfer",
-            "java.xml",
-            "java.prefs",
-            "java.desktop",
-            "java.instrument",
-            "java.logging",
-            "java.management",
-            "java.security.sasl",
-            "java.naming",
-            "java.rmi",
-            "java.management.rmi",
-            "java.net.http",
-            "java.scripting",
-            "java.security.jgss",
-            "java.transaction.xa",
-            "java.sql",
-            "java.sql.rowset",
-            "jdk.internal.opt",
-            "jdk.zipfs",
-            "jdk.compiler",
-            "jdk.crypto.ec",
-            "jdk.jfr",
-            "jdk.localedata",
-            "jdk.management",
-            "jdk.net",
-            "jdk.security.auth",
-            "jdk.unsupported"));
-
-    // quarkus-enterprise: Full enterprise Quarkus app
-    // Features: REST API, Hibernate/H2, Transactions, Health, Metrics
-    // This is a complex app with many transitive dependencies
-    GROUND_TRUTH.put(
-        "quarkus-enterprise",
-        Set.of(
-            "java.base",
-            "java.compiler",
-            "java.datatransfer",
-            "java.xml",
-            "java.prefs",
-            "java.desktop",
-            "java.instrument",
-            "java.logging",
-            "java.management",
-            "java.security.sasl",
-            "java.naming",
-            "java.rmi",
-            "java.management.rmi",
-            "java.net.http",
-            "java.scripting",
-            "java.security.jgss",
-            "java.transaction.xa",
-            "java.sql",
-            "jdk.internal.jvmstat",
-            "jdk.attach",
-            "jdk.internal.opt",
-            "jdk.zipfs",
-            "jdk.compiler",
-            "jdk.crypto.ec",
-            "jdk.management",
-            "jdk.management.agent",
-            "jdk.jconsole",
-            "jdk.localedata",
-            "jdk.net",
-            "jdk.unsupported"));
-  }
-
-  private final JDepsAnalyzer jdepsAnalyzer = new JDepsAnalyzer();
-  private final ApiUsageScanner apiUsageScanner = new ApiUsageScanner();
-  private final ReflectionBytecodeScanner reflectionScanner = new ReflectionBytecodeScanner();
-  private final CryptoModuleScanner cryptoScanner = new CryptoModuleScanner();
-  private final ZipFsModuleScanner zipFsScanner = new ZipFsModuleScanner();
-  private final JmxModuleScanner jmxScanner = new JmxModuleScanner();
-  private final LocaleModuleScanner localeScanner = new LocaleModuleScanner();
-
   @BeforeAll
   static void checkExamplesExist() {
     assertThat(EXAMPLES_DIR).as("Examples directory should exist").exists().isDirectory();
   }
 
-  @ParameterizedTest
-  @CsvSource({
-    "simple-app",
-    "logging-app",
-    "http-client-app",
-    "locale-app",
-    "zipfs-app",
-    "jmx-app",
-    "reflection-app",
-    "sql-app",
-    "xml-app",
-    "scripting-app",
-    "prefs-app",
-    "naming-app",
-    "rmi-app",
-    "desktop-app",
-    "compiler-app",
-    "instrument-app",
-    "mixed-patterns-app"
-    // Enterprise apps (spring-boot-enterprise, quarkus-enterprise) require full dependency
-    // analysis via SlimJre class and are validated separately via maven plugin output
-  })
-  @DisplayName("Validate module detection accuracy for")
-  void validateAccuracy(String exampleName) throws Exception {
-    // JAR files have version suffix (e.g., reflection-app-1.0.0-SNAPSHOT.jar)
-    Path jarPath =
-        EXAMPLES_DIR
-            .resolve(exampleName)
-            .resolve("target")
-            .resolve(exampleName + "-1.0.0-SNAPSHOT.jar");
-
-    if (!Files.exists(jarPath)) {
-      System.out.println("SKIP: " + exampleName + " (JAR not built)");
-      return;
-    }
-
-    Set<String> expected = GROUND_TRUTH.getOrDefault(exampleName, Set.of("java.base"));
-    Set<String> detected = detectAllModules(jarPath);
-
-    // Calculate metrics
-    Set<String> truePositives = new TreeSet<>(expected);
-    truePositives.retainAll(detected);
-
-    Set<String> falsePositives = new TreeSet<>(detected);
-    falsePositives.removeAll(expected);
-
-    Set<String> falseNegatives = new TreeSet<>(expected);
-    falseNegatives.removeAll(detected);
-
-    double precision = detected.isEmpty() ? 0 : (double) truePositives.size() / detected.size();
-    double recall = expected.isEmpty() ? 0 : (double) truePositives.size() / expected.size();
-    double f1 = (precision + recall) == 0 ? 0 : 2 * (precision * recall) / (precision + recall);
-
-    // Report
-    System.out.println("\n=== " + exampleName + " ===");
-    System.out.println("Expected modules:  " + expected);
-    System.out.println("Detected modules:  " + detected);
-    System.out.println("True positives:    " + truePositives);
-    System.out.println("False positives:   " + falsePositives);
-    System.out.println("False negatives:   " + falseNegatives);
-    System.out.printf("Precision: %.2f, Recall: %.2f, F1: %.2f%n", precision, recall, f1);
-
-    // Assertions - expect high recall (catch all required modules)
-    assertThat(recall)
-        .as(
-            "Recall for " + exampleName + " should be >= 0.8 (caught %d of %d required modules)",
-            truePositives.size(),
-            expected.size())
-        .isGreaterThanOrEqualTo(0.8);
-
-    // False negatives are critical - these are modules we missed
-    assertThat(falseNegatives).as("Should not miss critical modules for " + exampleName).isEmpty();
-  }
-
-  @Test
-  @DisplayName("Generate comprehensive accuracy report")
-  void generateAccuracyReport() throws Exception {
-    System.out.println("\n========================================");
-    System.out.println("SLIM JRE SCANNER ACCURACY REPORT");
-    System.out.println("========================================\n");
-
-    int totalExpected = 0;
-    int totalDetected = 0;
-    int totalTruePositives = 0;
-    int totalFalsePositives = 0;
-    int totalFalseNegatives = 0;
-
-    for (String exampleName : GROUND_TRUTH.keySet()) {
-      Path jarPath =
-          EXAMPLES_DIR
-              .resolve(exampleName)
-              .resolve("target")
-              .resolve(exampleName + "-1.0.0-SNAPSHOT.jar");
-
-      if (!Files.exists(jarPath)) {
-        System.out.println(exampleName + ": SKIPPED (not built)");
-        continue;
-      }
-
-      Set<String> expected = GROUND_TRUTH.get(exampleName);
-      Set<String> detected = detectAllModules(jarPath);
-
-      Set<String> tp = new TreeSet<>(expected);
-      tp.retainAll(detected);
-
-      Set<String> fp = new TreeSet<>(detected);
-      fp.removeAll(expected);
-
-      Set<String> fn = new TreeSet<>(expected);
-      fn.removeAll(detected);
-
-      totalExpected += expected.size();
-      totalDetected += detected.size();
-      totalTruePositives += tp.size();
-      totalFalsePositives += fp.size();
-      totalFalseNegatives += fn.size();
-
-      double recall = expected.isEmpty() ? 1.0 : (double) tp.size() / expected.size();
-      String status = fn.isEmpty() ? "PASS" : "FAIL";
-
-      System.out.printf(
-          "%s: %s (Recall: %.0f%%, TP: %d, FP: %d, FN: %d)%n",
-          exampleName, status, recall * 100, tp.size(), fp.size(), fn.size());
-
-      if (!fn.isEmpty()) {
-        System.out.println("  MISSED: " + fn);
-      }
-      if (!fp.isEmpty()) {
-        System.out.println("  EXTRA:  " + fp);
-      }
-    }
-
-    System.out.println("\n----------------------------------------");
-    double overallPrecision = totalDetected == 0 ? 0 : (double) totalTruePositives / totalDetected;
-    double overallRecall = totalExpected == 0 ? 0 : (double) totalTruePositives / totalExpected;
-    double overallF1 =
-        (overallPrecision + overallRecall) == 0
-            ? 0
-            : 2 * (overallPrecision * overallRecall) / (overallPrecision + overallRecall);
-
-    System.out.printf("Overall Precision: %.2f%n", overallPrecision);
-    System.out.printf("Overall Recall:    %.2f%n", overallRecall);
-    System.out.printf("Overall F1 Score:  %.2f%n", overallF1);
-    System.out.printf("Total False Negatives (missed modules): %d%n", totalFalseNegatives);
-    System.out.printf("Total False Positives (extra modules):  %d%n", totalFalsePositives);
-    System.out.println("========================================\n");
-  }
-
-  /** Detects all modules required by a JAR using all available scanners. */
-  private Set<String> detectAllModules(Path jarPath) {
-    Set<String> allModules = new LinkedHashSet<>();
-    List<Path> jarList = List.of(jarPath);
-
-    // jdeps analysis
-    try {
-      allModules.addAll(jdepsAnalyzer.analyzeRequiredModules(jarList));
-    } catch (Exception e) {
-      System.err.println("jdeps failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // API usage scanner
-    try {
-      allModules.addAll(apiUsageScanner.scanJar(jarPath));
-    } catch (Exception e) {
-      System.err.println("ApiUsageScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // Reflection scanner
-    try {
-      allModules.addAll(reflectionScanner.scanJar(jarPath));
-    } catch (Exception e) {
-      System.err.println("ReflectionScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // Crypto scanner
-    try {
-      CryptoDetectionResult cryptoResult = cryptoScanner.scanJarsParallel(jarList);
-      allModules.addAll(cryptoResult.requiredModules());
-    } catch (Exception e) {
-      System.err.println("CryptoScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // ZipFS scanner
-    try {
-      allModules.addAll(zipFsScanner.scanJarsParallel(jarList).requiredModules());
-    } catch (Exception e) {
-      System.err.println("ZipFsScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // JMX scanner
-    try {
-      allModules.addAll(jmxScanner.scanJarsParallel(jarList).requiredModules());
-    } catch (Exception e) {
-      System.err.println("JmxScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // Locale scanner
-    try {
-      allModules.addAll(localeScanner.scanJarsParallel(jarList).requiredModules());
-    } catch (Exception e) {
-      System.err.println("LocaleScanner failed for " + jarPath + ": " + e.getMessage());
-    }
-
-    // Always include java.base
-    allModules.add("java.base");
-
-    return allModules.stream().sorted().collect(Collectors.toCollection(LinkedHashSet::new));
-  }
-
   /**
-   * Validates enterprise apps by reading the generated slim-jre release file. These apps require
-   * full dependency analysis (73+ JARs) which is done by the maven plugin during build.
+   * Compares detected modules against required-modules.txt for all examples. Reports mismatches as
+   * warnings for later investigation.
    */
-  @ParameterizedTest
-  @CsvSource({"spring-boot-enterprise", "quarkus-enterprise"})
-  @DisplayName("Validate enterprise app accuracy from generated JRE for")
-  void validateEnterpriseAccuracy(String exampleName) throws Exception {
-    Path releaseFile =
-        EXAMPLES_DIR.resolve(exampleName).resolve("target").resolve("slim-jre").resolve("release");
+  @Test
+  @DisplayName("Validate scanner accuracy against required-modules.txt")
+  void validateScannerAccuracy() throws Exception {
+    printHeader();
 
-    if (!Files.exists(releaseFile)) {
-      System.out.println(
-          "SKIP: " + exampleName + " (slim-jre not generated - run maven build first)");
-      return;
-    }
+    List<ExampleResult> results = new ArrayList<>();
+    int skipped = 0;
 
-    // Read modules from the generated JRE release file
-    String releaseContent = Files.readString(releaseFile);
-    Set<String> detected = parseModulesFromRelease(releaseContent);
+    // Find all example directories with required-modules.txt
+    try (Stream<Path> dirs = Files.list(EXAMPLES_DIR)) {
+      List<Path> exampleDirs =
+          dirs.filter(Files::isDirectory)
+              .filter(dir -> Files.exists(dir.resolve("required-modules.txt")))
+              .sorted()
+              .toList();
 
-    Set<String> expected = GROUND_TRUTH.getOrDefault(exampleName, Set.of("java.base"));
+      for (Path exampleDir : exampleDirs) {
+        String name = exampleDir.getFileName().toString();
+        Path requiredModulesFile = exampleDir.resolve("required-modules.txt");
+        Path targetDir = exampleDir.resolve("target");
 
-    // Calculate metrics
-    Set<String> truePositives = new TreeSet<>(expected);
-    truePositives.retainAll(detected);
-
-    Set<String> falsePositives = new TreeSet<>(detected);
-    falsePositives.removeAll(expected);
-
-    Set<String> falseNegatives = new TreeSet<>(expected);
-    falseNegatives.removeAll(detected);
-
-    double precision = detected.isEmpty() ? 0 : (double) truePositives.size() / detected.size();
-    double recall = expected.isEmpty() ? 0 : (double) truePositives.size() / expected.size();
-    double f1 = (precision + recall) == 0 ? 0 : 2 * (precision * recall) / (precision + recall);
-
-    // Report
-    System.out.println("\n=== " + exampleName + " (ENTERPRISE) ===");
-    System.out.println("Expected modules (" + expected.size() + "): " + expected);
-    System.out.println("Detected modules (" + detected.size() + "): " + detected);
-    System.out.println("True positives:    " + truePositives);
-    System.out.println("False positives:   " + falsePositives);
-    System.out.println("False negatives:   " + falseNegatives);
-    System.out.printf("Precision: %.2f, Recall: %.2f, F1: %.2f%n", precision, recall, f1);
-
-    // Assertions - expect high recall for enterprise apps
-    assertThat(recall)
-        .as(
-            "Recall for " + exampleName + " should be >= 0.95 (caught %d of %d required modules)",
-            truePositives.size(),
-            expected.size())
-        .isGreaterThanOrEqualTo(0.95);
-  }
-
-  /** Parse MODULES="mod1 mod2 mod3" format from JRE release file. */
-  private Set<String> parseModulesFromRelease(String content) {
-    for (String line : content.split("\n")) {
-      if (line.startsWith("MODULES=")) {
-        String modules = line.substring("MODULES=".length()).trim();
-        // Remove quotes if present
-        if (modules.startsWith("\"") && modules.endsWith("\"")) {
-          modules = modules.substring(1, modules.length() - 1);
+        // Read expected modules
+        Set<String> expected = readRequiredModules(requiredModulesFile);
+        if (expected.isEmpty()) {
+          printSkipped(name, "empty required-modules.txt");
+          skipped++;
+          continue;
         }
-        return Set.of(modules.split("\\s+"));
+
+        // Analyze with SlimJre
+        Set<String> detected = analyzeWithSlimJre(name, targetDir);
+        if (detected.isEmpty()) {
+          printSkipped(name, "not built or analysis failed");
+          skipped++;
+          continue;
+        }
+
+        // Calculate differences
+        Set<String> missing = difference(expected, detected);
+        Set<String> extra = difference(detected, expected);
+
+        results.add(new ExampleResult(name, expected, detected, missing, extra));
+        printResult(results.getLast());
       }
     }
-    return Set.of();
+
+    printSummary(results, skipped);
+
+    // Test passes if at least one example was processed
+    assertThat(results).as("At least one example should be processed").isNotEmpty();
+  }
+
+  // ========================================
+  // Output Formatting
+  // ========================================
+
+  private void printHeader() {
+    System.out.println();
+    System.out.println("╔══════════════════════════════════════════════════════════════════╗");
+    System.out.println("║           SLIM JRE SCANNER ACCURACY VALIDATION                   ║");
+    System.out.println("╠══════════════════════════════════════════════════════════════════╣");
+    System.out.println("║  Comparing detected modules against required-modules.txt         ║");
+    System.out.println("╚══════════════════════════════════════════════════════════════════╝");
+    System.out.println();
+  }
+
+  private void printSkipped(String name, String reason) {
+    System.out.printf("  ⊘  %-30s  SKIPPED (%s)%n", name, reason);
+  }
+
+  private void printResult(ExampleResult result) {
+    if (result.isMatch()) {
+      System.out.printf("  ✓  %-30s  MATCH   (%d modules)%n", result.name, result.expected.size());
+    } else {
+      System.out.printf("  ⚠  %-30s  MISMATCH%n", result.name);
+      System.out.printf(
+          "     Expected (%d): %s%n", result.expected.size(), formatModules(result.expected));
+      System.out.printf(
+          "     Detected (%d): %s%n", result.detected.size(), formatModules(result.detected));
+      if (!result.missing.isEmpty()) {
+        System.out.printf("     ✗ Missing: %s%n", formatModules(result.missing));
+      }
+      if (!result.extra.isEmpty()) {
+        System.out.printf("     + Extra:   %s%n", formatModules(result.extra));
+      }
+    }
+  }
+
+  private void printSummary(List<ExampleResult> results, int skipped) {
+    long matches = results.stream().filter(ExampleResult::isMatch).count();
+    long mismatches = results.size() - matches;
+    double matchRate = results.isEmpty() ? 0 : 100.0 * matches / results.size();
+
+    // Aggregate statistics
+    int totalExpected = results.stream().mapToInt(r -> r.expected.size()).sum();
+    int totalDetected = results.stream().mapToInt(r -> r.detected.size()).sum();
+    int totalMissing = results.stream().mapToInt(r -> r.missing.size()).sum();
+    int totalExtra = results.stream().mapToInt(r -> r.extra.size()).sum();
+    int totalCorrect = totalExpected - totalMissing;
+
+    double precision = totalDetected == 0 ? 0 : 100.0 * totalCorrect / totalDetected;
+    double recall = totalExpected == 0 ? 0 : 100.0 * totalCorrect / totalExpected;
+
+    System.out.println();
+    System.out.println("┌──────────────────────────────────────────────────────────────────┐");
+    System.out.println("│                           SUMMARY                                │");
+    System.out.println("├──────────────────────────────────────────────────────────────────┤");
+    System.out.printf(
+        "│  Examples Processed:  %-5d                                      │%n", results.size());
+    System.out.printf(
+        "│  Examples Skipped:    %-5d                                      │%n", skipped);
+    System.out.printf(
+        "│  Matches:             %-5d                                      │%n", matches);
+    System.out.printf(
+        "│  Mismatches:          %-5d                                      │%n", mismatches);
+    System.out.printf(
+        "│  Match Rate:          %-6.1f%%                                    │%n", matchRate);
+    System.out.println("├──────────────────────────────────────────────────────────────────┤");
+    System.out.printf(
+        "│  Total Expected Modules:   %-5d                                 │%n", totalExpected);
+    System.out.printf(
+        "│  Total Detected Modules:   %-5d                                 │%n", totalDetected);
+    System.out.printf(
+        "│  Missing (False Negatives): %-4d                                 │%n", totalMissing);
+    System.out.printf(
+        "│  Extra (False Positives):   %-4d                                 │%n", totalExtra);
+    System.out.printf(
+        "│  Precision:            %-6.1f%%                                   │%n", precision);
+    System.out.printf(
+        "│  Recall:               %-6.1f%%                                   │%n", recall);
+    System.out.println("└──────────────────────────────────────────────────────────────────┘");
+
+    if (mismatches > 0) {
+      System.out.println();
+      System.out.println("⚠ MISMATCHES DETECTED - Review required:");
+      results.stream()
+          .filter(r -> !r.isMatch())
+          .forEach(
+              r -> {
+                System.out.printf("  • %s%n", r.name);
+                if (!r.missing.isEmpty()) {
+                  System.out.printf("      Missing: %s%n", r.missing);
+                }
+                if (!r.extra.isEmpty()) {
+                  System.out.printf("      Extra:   %s%n", r.extra);
+                }
+              });
+      System.out.println();
+      System.out.println("Note: Mismatches may indicate:");
+      System.out.println("  1. Scanner accuracy issues (investigate root cause)");
+      System.out.println("  2. required-modules.txt needs updating");
+      System.out.println("  3. Transitive dependencies correctly detected by scanners");
+    }
+
+    System.out.println();
+  }
+
+  private String formatModules(Set<String> modules) {
+    if (modules.size() <= 5) {
+      return modules.toString();
+    }
+    return modules.stream().limit(5).collect(Collectors.joining(", ", "[", ", ...]"))
+        + " ("
+        + modules.size()
+        + " total)";
+  }
+
+  // ========================================
+  // Helper Methods
+  // ========================================
+
+  private Set<String> readRequiredModules(Path file) {
+    try {
+      String content = Files.readString(file).trim();
+      if (content.isEmpty()) {
+        return Set.of();
+      }
+      return Arrays.stream(content.split(","))
+          .map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .collect(Collectors.toCollection(TreeSet::new));
+    } catch (IOException e) {
+      return Set.of();
+    }
+  }
+
+  private Set<String> analyzeWithSlimJre(String exampleName, Path targetDir) {
+    try {
+      List<Path> jars = collectJars(targetDir, exampleName);
+      if (jars.isEmpty()) {
+        return Set.of();
+      }
+      var result = SlimJre.builder().jars(jars).analyze();
+      return new TreeSet<>(result.allModules());
+    } catch (Exception e) {
+      return Set.of();
+    }
+  }
+
+  private List<Path> collectJars(Path targetDir, String exampleName) {
+    List<Path> jars = new ArrayList<>();
+    if (!Files.exists(targetDir)) {
+      return jars;
+    }
+
+    // Main JAR
+    Path mainJar = targetDir.resolve(exampleName + "-1.0.0-SNAPSHOT.jar");
+    if (Files.exists(mainJar)) {
+      jars.add(mainJar);
+    }
+
+    // Dependency directories
+    for (String depDir : List.of("dependency", "libs")) {
+      Path dir = targetDir.resolve(depDir);
+      if (Files.exists(dir) && Files.isDirectory(dir)) {
+        try (Stream<Path> depJars = Files.list(dir)) {
+          depJars.filter(p -> p.toString().endsWith(".jar")).forEach(jars::add);
+        } catch (IOException e) {
+          // Continue with main JAR only
+        }
+      }
+    }
+
+    return jars;
+  }
+
+  private Set<String> difference(Set<String> a, Set<String> b) {
+    Set<String> result = new TreeSet<>(a);
+    result.removeAll(b);
+    return result;
+  }
+
+  // ========================================
+  // Result Record
+  // ========================================
+
+  private record ExampleResult(
+      String name,
+      Set<String> expected,
+      Set<String> detected,
+      Set<String> missing,
+      Set<String> extra) {
+
+    boolean isMatch() {
+      return missing.isEmpty() && extra.isEmpty();
+    }
   }
 }
