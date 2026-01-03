@@ -1,0 +1,1 @@
+java.base,java.sql,java.naming,java.logging,java.management,java.xml,java.transaction.xa,java.compiler,jdk.unsupported
