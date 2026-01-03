@@ -71,7 +71,7 @@ class SlimJrePluginTest {
         assertThat(extension.scanServiceLoaders.get()).isTrue()
         assertThat(extension.verbose.get()).isFalse()
         assertThat(extension.skip.get()).isFalse()
-        assertThat(extension.additionalModules.get()).isEmpty()
+        assertThat(extension.includeModules.get()).isEmpty()
         assertThat(extension.excludeModules.get()).isEmpty()
     }
 
@@ -88,13 +88,13 @@ class SlimJrePluginTest {
 
         extension.stripDebug.set(false)
         extension.compression.set("zip-9")
-        extension.additionalModules.add("java.management")
+        extension.includeModules.add("java.management")
         extension.excludeModules.add("java.desktop")
         extension.verbose.set(true)
 
         assertThat(extension.stripDebug.get()).isFalse()
         assertThat(extension.compression.get()).isEqualTo("zip-9")
-        assertThat(extension.additionalModules.get()).containsExactly("java.management")
+        assertThat(extension.includeModules.get()).containsExactly("java.management")
         assertThat(extension.excludeModules.get()).containsExactly("java.desktop")
         assertThat(extension.verbose.get()).isTrue()
     }

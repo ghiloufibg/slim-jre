@@ -13,7 +13,7 @@ import java.util.Set;
  *
  * @param jars JARs to analyze for module dependencies
  * @param outputPath Where to create the slim JRE
- * @param additionalModules Modules to force-include beyond those detected
+ * @param includeModules Modules to force-include beyond those detected
  * @param excludeModules Modules to exclude from the final JRE
  * @param stripDebug Whether to strip debug information (default: true)
  * @param compression Compression level: zip-0 to zip-9 (default: zip-6)
@@ -27,7 +27,7 @@ import java.util.Set;
 public record SlimJreConfig(
     List<Path> jars,
     Path outputPath,
-    Set<String> additionalModules,
+    Set<String> includeModules,
     Set<String> excludeModules,
     boolean stripDebug,
     String compression,
@@ -40,7 +40,7 @@ public record SlimJreConfig(
   public SlimJreConfig {
     // Defensive copies
     jars = List.copyOf(jars);
-    additionalModules = Set.copyOf(additionalModules);
+    includeModules = Set.copyOf(includeModules);
     excludeModules = Set.copyOf(excludeModules);
   }
 
@@ -98,7 +98,7 @@ public record SlimJreConfig(
   public static class Builder {
     private final List<Path> jars = new ArrayList<>();
     private Path outputPath = Path.of("slim-jre");
-    private final Set<String> additionalModules = new HashSet<>();
+    private final Set<String> includeModules = new HashSet<>();
     private final Set<String> excludeModules = new HashSet<>();
     private boolean stripDebug = true;
     private String compression = "zip-6";
@@ -129,13 +129,13 @@ public record SlimJreConfig(
 
     /** Adds a module to force-include. */
     public Builder addModule(String module) {
-      this.additionalModules.add(module);
+      this.includeModules.add(module);
       return this;
     }
 
     /** Adds multiple modules to force-include. */
-    public Builder additionalModules(Set<String> modules) {
-      this.additionalModules.addAll(modules);
+    public Builder includeModules(Set<String> modules) {
+      this.includeModules.addAll(modules);
       return this;
     }
 
@@ -204,7 +204,7 @@ public record SlimJreConfig(
       return new SlimJreConfig(
           jars,
           outputPath,
-          additionalModules,
+          includeModules,
           excludeModules,
           stripDebug,
           compression,

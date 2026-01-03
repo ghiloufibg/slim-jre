@@ -55,7 +55,7 @@ class SlimJrePluginFunctionalTest {
 
             slimJre {
                 compression.set("zip-9")
-                additionalModules.add("java.management")
+                includeModules.add("java.management")
                 verbose.set(true)
             }
         """.trimIndent())

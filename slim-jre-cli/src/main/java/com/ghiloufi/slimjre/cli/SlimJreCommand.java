@@ -176,7 +176,7 @@ public class SlimJreCommand implements Callable<Integer> {
               .verbose(verbose);
 
       if (addModules != null) {
-        configBuilder.additionalModules(addModules);
+        configBuilder.includeModules(addModules);
       }
 
       if (excludeModules != null) {

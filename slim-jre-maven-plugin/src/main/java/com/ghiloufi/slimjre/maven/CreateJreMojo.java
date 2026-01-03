@@ -98,7 +98,7 @@ public class CreateJreMojo extends AbstractSlimJreMojo {
               .scanServiceLoaders(scanServiceLoaders)
               .scanGraalVmMetadata(scanGraalVmMetadata)
               .cryptoMode(cryptoMode)
-              .additionalModules(getAdditionalModulesSet())
+              .includeModules(getIncludeModulesSet())
               .excludeModules(getExcludedModulesSet())
               .verbose(verbose)
               .build();

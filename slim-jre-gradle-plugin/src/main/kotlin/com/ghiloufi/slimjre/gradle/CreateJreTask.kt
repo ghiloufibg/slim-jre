@@ -7,9 +7,11 @@ import com.ghiloufi.slimjre.core.SlimJre
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.*
+import java.io.File
 import java.nio.file.Path
 
 /**
@@ -25,11 +27,21 @@ abstract class CreateJreTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val inputJars: ConfigurableFileCollection
 
+    /**
+     * Optional custom input path (JAR file or directory) to analyze.
+     * If set, this overrides the default inputJars.
+     * Note: Using @Internal because this can be either a file or directory.
+     * The actual inputs are tracked via inputJars in the default case,
+     * or via the JAR files discovered from this path.
+     */
+    @get:Internal
+    abstract val customInputPath: RegularFileProperty
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
     @get:Input
-    abstract val additionalModules: SetProperty<String>
+    abstract val includeModules: SetProperty<String>
 
     @get:Input
     abstract val excludeModules: SetProperty<String>
@@ -65,9 +77,7 @@ abstract class CreateJreTask : DefaultTask() {
 
     @TaskAction
     fun createJre() {
-        val jars = inputJars.files
-            .filter { it.exists() && it.name.endsWith(".jar") }
-            .map { it.toPath() }
+        val jars = collectJars()
 
         if (jars.isEmpty()) {
             logger.warn("No JAR files found. Ensure the project has been built.")
@@ -89,11 +99,40 @@ abstract class CreateJreTask : DefaultTask() {
         logResult(result)
     }
 
+    private fun collectJars(): List<Path> {
+        // If custom input path is specified, use that
+        if (customInputPath.isPresent) {
+            val inputFile = customInputPath.get().asFile
+            if (!inputFile.exists()) {
+                throw IllegalArgumentException("Specified input path not found: $inputFile")
+            }
+
+            return if (inputFile.isDirectory) {
+                // Collect all JARs from the directory
+                val jarFiles = inputFile.listFiles { _, name -> name.endsWith(".jar") }
+                if (jarFiles.isNullOrEmpty()) {
+                    throw IllegalArgumentException("No JAR files found in directory: $inputFile")
+                }
+                logger.lifecycle("Using custom input directory: $inputFile")
+                jarFiles.map { it.toPath() }
+            } else {
+                // Single JAR file
+                logger.lifecycle("Using custom input artifact: $inputFile")
+                listOf(inputFile.toPath())
+            }
+        }
+
+        // Default: use inputJars from project
+        return inputJars.files
+            .filter { it.exists() && it.name.endsWith(".jar") }
+            .map { it.toPath() }
+    }
+
     private fun buildConfig(jars: List<Path>): SlimJreConfig {
         return SlimJreConfig.builder()
             .jars(jars)
             .outputPath(outputDirectory.get().asFile.toPath())
-            .additionalModules(additionalModules.get())
+            .includeModules(includeModules.get())
             .excludeModules(excludeModules.get())
             .stripDebug(stripDebug.get())
             .compression(compression.get())

@@ -20,9 +20,25 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
   @Parameter(defaultValue = "${project}", readonly = true, required = true)
   protected MavenProject project;
 
+  /**
+   * Custom artifact (JAR file or directory) to analyze instead of the project's artifact. If not
+   * specified, the plugin analyzes the project's main JAR and its runtime dependencies. Can be an
+   * absolute path or relative to the project directory.
+   *
+   * <p>Example:
+   *
+   * <pre>{@code
+   * <configuration>
+   *     <artifact>${project.build.directory}/my-custom.jar</artifact>
+   * </configuration>
+   * }</pre>
+   */
+  @Parameter(property = "slimjre.artifact")
+  protected File artifact;
+
   /** Additional modules to include beyond those detected. */
-  @Parameter(property = "slimjre.additionalModules")
-  protected List<String> additionalModules;
+  @Parameter(property = "slimjre.includeModules")
+  protected List<String> includeModules;
 
   /** Modules to exclude from the final JRE. */
   @Parameter(property = "slimjre.excludeModules")
@@ -58,13 +74,42 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
   protected boolean skip;
 
   /**
-   * Collects all JAR files for analysis. Includes the project's main artifact and all runtime
-   * dependencies.
+   * Collects all JAR files for analysis. If a custom artifact is specified, only that artifact is
+   * analyzed. Otherwise, includes the project's main artifact and all runtime dependencies.
    */
   protected List<Path> collectJars() throws MojoExecutionException {
     List<Path> jars = new ArrayList<>();
 
-    // Add project artifact
+    // If custom artifact is specified, use only that
+    if (artifact != null) {
+      if (!artifact.exists()) {
+        throw new MojoExecutionException("Specified artifact not found: " + artifact);
+      }
+
+      if (artifact.isDirectory()) {
+        // Collect all JARs from the directory
+        File[] jarFiles = artifact.listFiles((dir, name) -> name.endsWith(".jar"));
+        if (jarFiles != null) {
+          for (File jarFile : jarFiles) {
+            jars.add(jarFile.toPath());
+            getLog().debug("Added JAR from directory: " + jarFile);
+          }
+        }
+        if (jars.isEmpty()) {
+          throw new MojoExecutionException("No JAR files found in directory: " + artifact);
+        }
+      } else {
+        // Single JAR file
+        jars.add(artifact.toPath());
+        getLog().debug("Added custom artifact: " + artifact);
+      }
+
+      getLog().info("Using custom artifact: " + artifact);
+      getLog().info("Collected " + jars.size() + " JAR(s) for analysis");
+      return jars;
+    }
+
+    // Default behavior: use project artifact and dependencies
     File artifactFile = project.getArtifact().getFile();
     if (artifactFile == null) {
       // Try the build output directory
@@ -83,9 +128,9 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
     getLog().debug("Added project artifact: " + artifactFile);
 
     // Add runtime dependencies
-    for (Artifact artifact : project.getArtifacts()) {
-      if ("compile".equals(artifact.getScope()) || "runtime".equals(artifact.getScope())) {
-        File file = artifact.getFile();
+    for (Artifact dep : project.getArtifacts()) {
+      if ("compile".equals(dep.getScope()) || "runtime".equals(dep.getScope())) {
+        File file = dep.getFile();
         if (file != null && file.exists() && file.getName().endsWith(".jar")) {
           jars.add(file.toPath());
           getLog().debug("Added dependency: " + file);
@@ -98,11 +143,11 @@ public abstract class AbstractSlimJreMojo extends AbstractMojo {
   }
 
   /** Returns additional modules as a set. */
-  protected Set<String> getAdditionalModulesSet() {
-    if (additionalModules == null || additionalModules.isEmpty()) {
+  protected Set<String> getIncludeModulesSet() {
+    if (includeModules == null || includeModules.isEmpty()) {
       return Set.of();
     }
-    return new HashSet<>(additionalModules);
+    return new HashSet<>(includeModules);
   }
 
   /** Returns excluded modules as a set. */

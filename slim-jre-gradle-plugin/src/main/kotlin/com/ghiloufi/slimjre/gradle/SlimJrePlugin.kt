@@ -21,7 +21,7 @@ import org.gradle.jvm.tasks.Jar as JvmJar
  *
  * slimJre {
  *     outputDirectory.set(layout.buildDirectory.dir("custom-jre"))
- *     additionalModules.add("java.management")
+ *     includeModules.add("java.management")
  *     compression.set("zip-9")
  * }
  * ```
@@ -71,8 +71,9 @@ class SlimJrePlugin : Plugin<Project> {
 
             // Wire inputs
             inputJars.from(getProjectJars(project))
+            customInputPath.set(extension.inputPath)
             outputDirectory.set(extension.outputDirectory)
-            additionalModules.set(extension.additionalModules)
+            includeModules.set(extension.includeModules)
             excludeModules.set(extension.excludeModules)
             stripDebug.set(extension.stripDebug)
             compression.set(extension.compression)
@@ -83,8 +84,10 @@ class SlimJrePlugin : Plugin<Project> {
             cryptoMode.set(extension.cryptoMode)
             verbose.set(extension.verbose)
 
-            // Depend on jar task
-            dependsOn(project.tasks.named("jar"))
+            // Depend on jar task only if no custom input is specified
+            if (!extension.inputPath.isPresent) {
+                dependsOn(project.tasks.named("jar"))
+            }
         }
     }
 
@@ -97,14 +100,17 @@ class SlimJrePlugin : Plugin<Project> {
 
             // Wire inputs
             inputJars.from(getProjectJars(project))
-            additionalModules.set(extension.additionalModules)
+            customInputPath.set(extension.inputPath)
+            includeModules.set(extension.includeModules)
             excludeModules.set(extension.excludeModules)
             scanServiceLoaders.set(extension.scanServiceLoaders)
             scanGraalVmMetadata.set(extension.scanGraalVmMetadata)
             verbose.set(extension.verbose)
 
-            // Depend on jar task
-            dependsOn(project.tasks.named("jar"))
+            // Depend on jar task only if no custom input is specified
+            if (!extension.inputPath.isPresent) {
+                dependsOn(project.tasks.named("jar"))
+            }
         }
     }
 

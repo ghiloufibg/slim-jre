@@ -56,7 +56,7 @@ class SlimJreConfigTest {
     assertThat(config.noManPages()).isFalse();
     assertThat(config.scanServiceLoaders()).isFalse();
     assertThat(config.verbose()).isTrue();
-    assertThat(config.additionalModules()).contains("java.management");
+    assertThat(config.includeModules()).contains("java.management");
     assertThat(config.excludeModules()).contains("java.desktop");
   }
 
@@ -153,14 +153,14 @@ class SlimJreConfigTest {
     Path jar = createTempJar("test.jar");
 
     var jars = new java.util.ArrayList<>(List.of(jar));
-    var additionalModules = new java.util.HashSet<>(Set.of("java.sql"));
+    var includeModules = new java.util.HashSet<>(Set.of("java.sql"));
     var excludeModules = new java.util.HashSet<>(Set.of("java.desktop"));
 
     SlimJreConfig config =
         new SlimJreConfig(
             jars,
             tempDir.resolve("output"),
-            additionalModules,
+            includeModules,
             excludeModules,
             true,
             "zip-6",
@@ -173,12 +173,12 @@ class SlimJreConfigTest {
 
     // Modify original collections
     jars.clear();
-    additionalModules.clear();
+    includeModules.clear();
     excludeModules.clear();
 
     // Config should retain original values
     assertThat(config.jars()).hasSize(1);
-    assertThat(config.additionalModules()).contains("java.sql");
+    assertThat(config.includeModules()).contains("java.sql");
     assertThat(config.excludeModules()).contains("java.desktop");
   }
 

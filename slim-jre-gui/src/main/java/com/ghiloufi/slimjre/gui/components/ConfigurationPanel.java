@@ -35,7 +35,7 @@ public class ConfigurationPanel extends JPanel {
   private final JCheckBox stripDebugCheckbox;
   private final JCheckBox stripHeadersCheckbox;
   private final JCheckBox stripManPagesCheckbox;
-  private final JTextField additionalModulesField;
+  private final JTextField includeModulesField;
   private final JTextField excludeModulesField;
 
   /** Creates a new configuration panel with default values. */
@@ -57,7 +57,7 @@ public class ConfigurationPanel extends JPanel {
     stripHeadersCheckbox = new JCheckBox("Strip header files", true);
     stripManPagesCheckbox = new JCheckBox("Strip man pages", true);
 
-    additionalModulesField = new JTextField();
+    includeModulesField = new JTextField();
     excludeModulesField = new JTextField();
 
     initializeLayout();
@@ -175,7 +175,7 @@ public class ConfigurationPanel extends JPanel {
     gbc.gridx = 1;
     gbc.weightx = 1.0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
-    add(additionalModulesField, gbc);
+    add(includeModulesField, gbc);
 
     row++;
 
@@ -223,7 +223,7 @@ public class ConfigurationPanel extends JPanel {
     stripDebugCheckbox.setToolTipText("Remove debug information for smaller size");
     stripHeadersCheckbox.setToolTipText("Exclude native header files (not needed at runtime)");
     stripManPagesCheckbox.setToolTipText("Exclude manual pages (not needed at runtime)");
-    additionalModulesField.setToolTipText(
+    includeModulesField.setToolTipText(
         "Modules to force-include even if not detected (e.g., java.management, jdk.jfr)");
     excludeModulesField.setToolTipText("Modules to exclude even if detected (e.g., java.desktop)");
   }
@@ -273,9 +273,9 @@ public class ConfigurationPanel extends JPanel {
             .verbose(false);
 
     // Add additional modules
-    Set<String> addModules = parseModuleList(additionalModulesField.getText());
+    Set<String> addModules = parseModuleList(includeModulesField.getText());
     if (!addModules.isEmpty()) {
-      builder.additionalModules(addModules);
+      builder.includeModules(addModules);
     }
 
     // Add exclude modules
@@ -380,8 +380,8 @@ public class ConfigurationPanel extends JPanel {
    *
    * @return additional modules string
    */
-  public String getAdditionalModules() {
-    return additionalModulesField.getText();
+  public String getIncludeModules() {
+    return includeModulesField.getText();
   }
 
   /**
@@ -460,8 +460,8 @@ public class ConfigurationPanel extends JPanel {
    *
    * @param modules comma-separated module list
    */
-  public void setAdditionalModules(String modules) {
-    additionalModulesField.setText(modules != null ? modules : "");
+  public void setIncludeModules(String modules) {
+    includeModulesField.setText(modules != null ? modules : "");
   }
 
   /**

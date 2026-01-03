@@ -273,7 +273,7 @@ public class SlimJre {
       }
     }
 
-    allModules.addAll(config.additionalModules());
+    allModules.addAll(config.includeModules());
 
     // Remove excluded modules
     allModules.removeAll(config.excludeModules());
@@ -537,8 +537,8 @@ public class SlimJre {
     }
 
     /** Adds multiple modules to force-include. */
-    public FluentBuilder additionalModules(Set<String> modules) {
-      configBuilder.additionalModules(modules);
+    public FluentBuilder includeModules(Set<String> modules) {
+      configBuilder.includeModules(modules);
       return this;
     }
 

@@ -4,6 +4,7 @@ import com.ghiloufi.slimjre.config.AnalysisResult
 import com.ghiloufi.slimjre.core.SlimJre
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.*
@@ -22,8 +23,16 @@ abstract class AnalyzeTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val inputJars: ConfigurableFileCollection
 
+    /**
+     * Optional custom input path (JAR file or directory) to analyze.
+     * If set, this overrides the default inputJars.
+     * Note: Using @Internal because this can be either a file or directory.
+     */
+    @get:Internal
+    abstract val customInputPath: RegularFileProperty
+
     @get:Input
-    abstract val additionalModules: SetProperty<String>
+    abstract val includeModules: SetProperty<String>
 
     @get:Input
     abstract val excludeModules: SetProperty<String>
@@ -47,9 +56,7 @@ abstract class AnalyzeTask : DefaultTask() {
 
     @TaskAction
     fun analyze() {
-        val jars = inputJars.files
-            .filter { it.exists() && it.name.endsWith(".jar") }
-            .map { it.toPath() }
+        val jars = collectJars()
 
         if (jars.isEmpty()) {
             logger.warn("No JAR files found. Ensure the project has been built.")
@@ -71,10 +78,39 @@ abstract class AnalyzeTask : DefaultTask() {
         logAnalysis(result, jars)
     }
 
+    private fun collectJars(): List<Path> {
+        // If custom input path is specified, use that
+        if (customInputPath.isPresent) {
+            val inputFile = customInputPath.get().asFile
+            if (!inputFile.exists()) {
+                throw IllegalArgumentException("Specified input path not found: $inputFile")
+            }
+
+            return if (inputFile.isDirectory) {
+                // Collect all JARs from the directory
+                val jarFiles = inputFile.listFiles { _, name -> name.endsWith(".jar") }
+                if (jarFiles.isNullOrEmpty()) {
+                    throw IllegalArgumentException("No JAR files found in directory: $inputFile")
+                }
+                logger.lifecycle("Using custom input directory: $inputFile")
+                jarFiles.map { it.toPath() }
+            } else {
+                // Single JAR file
+                logger.lifecycle("Using custom input artifact: $inputFile")
+                listOf(inputFile.toPath())
+            }
+        }
+
+        // Default: use inputJars from project
+        return inputJars.files
+            .filter { it.exists() && it.name.endsWith(".jar") }
+            .map { it.toPath() }
+    }
+
     private fun logAnalysis(result: AnalysisResult, jars: List<Path>) {
         // Combine with additional/excluded modules
         val allModules = TreeSet(result.allModules())
-        allModules.addAll(additionalModules.get())
+        allModules.addAll(includeModules.get())
         allModules.removeAll(excludeModules.get())
 
         logger.lifecycle("")
@@ -150,10 +186,10 @@ abstract class AnalyzeTask : DefaultTask() {
             }
         }
 
-        if (additionalModules.get().isNotEmpty()) {
+        if (includeModules.get().isNotEmpty()) {
             logger.lifecycle("")
-            logger.lifecycle("Additional Modules (configured): ${additionalModules.get().size}")
-            additionalModules.get().sorted().forEach { module ->
+            logger.lifecycle("Include Modules (configured): ${includeModules.get().size}")
+            includeModules.get().sorted().forEach { module ->
                 logger.lifecycle("  + $module")
             }
         }

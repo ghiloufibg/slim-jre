@@ -18,12 +18,21 @@ import javax.inject.Inject
  *     outputDirectory.set(layout.buildDirectory.dir("slim-jre"))
  *     stripDebug.set(true)
  *     compression.set("zip-6")
- *     additionalModules.add("java.management")
+ *     includeModules.add("java.management")
  *     excludeModules.add("java.desktop")
+ *     // Optionally specify a custom artifact to analyze
+ *     inputPath.set(file("path/to/custom.jar"))
  * }
  * ```
  */
 abstract class SlimJreExtension @Inject constructor(objects: ObjectFactory) {
+
+    /**
+     * Custom artifact (JAR file or directory) to analyze instead of the project's artifact.
+     * If not specified, the plugin analyzes the project's main JAR and its runtime dependencies.
+     * Can be a JAR file or a directory containing JAR files.
+     */
+    abstract val inputPath: RegularFileProperty
 
     /**
      * Output directory for the slim JRE.
@@ -35,7 +44,7 @@ abstract class SlimJreExtension @Inject constructor(objects: ObjectFactory) {
      * Additional modules to include beyond those detected.
      * Default: empty
      */
-    abstract val additionalModules: SetProperty<String>
+    abstract val includeModules: SetProperty<String>
 
     /**
      * Modules to exclude from the final JRE.
@@ -116,7 +125,7 @@ abstract class SlimJreExtension @Inject constructor(objects: ObjectFactory) {
         cryptoMode.convention(CryptoMode.AUTO)
         verbose.convention(false)
         skip.convention(false)
-        additionalModules.convention(emptySet())
+        includeModules.convention(emptySet())
         excludeModules.convention(emptySet())
     }
 }

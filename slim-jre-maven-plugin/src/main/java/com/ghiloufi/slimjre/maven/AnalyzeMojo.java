@@ -57,7 +57,7 @@ public class AnalyzeMojo extends AbstractSlimJreMojo {
 
       // Combine with additional/excluded modules
       Set<String> allModules = new java.util.TreeSet<>(result.allModules());
-      allModules.addAll(getAdditionalModulesSet());
+      allModules.addAll(getIncludeModulesSet());
       allModules.removeAll(getExcludedModulesSet());
 
       // Log results
@@ -134,10 +134,10 @@ public class AnalyzeMojo extends AbstractSlimJreMojo {
         }
       }
 
-      if (!getAdditionalModulesSet().isEmpty()) {
+      if (!getIncludeModulesSet().isEmpty()) {
         getLog().info("");
-        getLog().info("Additional Modules (configured): " + getAdditionalModulesSet().size());
-        for (String module : getAdditionalModulesSet().stream().sorted().toList()) {
+        getLog().info("Include Modules (configured): " + getIncludeModulesSet().size());
+        for (String module : getIncludeModulesSet().stream().sorted().toList()) {
           getLog().info("  + " + module);
         }
       }
