@@ -16,6 +16,12 @@
     <name>Slim JRE Examples</name>
     <description>Example projects demonstrating Slim JRE usage</description>
 
+    <properties>
+        <!-- Skip deployment to Maven Central - these are test examples only -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+    </properties>
+
     <modules>
         <!-- Basic examples -->
         <module>simple-app</module>
