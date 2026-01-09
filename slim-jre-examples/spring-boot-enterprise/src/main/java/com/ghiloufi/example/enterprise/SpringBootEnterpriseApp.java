@@ -32,26 +32,16 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Enterprise Spring Boot Application for slim-jre accuracy testing.
  *
- * <p>Features tested:
- * - REST API (java.net.http patterns)
- * - JPA with H2 (java.sql)
- * - Transactions (@Transactional)
- * - Validation (Bean Validation)
- * - Logging (SLF4J → java.logging bridge)
- * - Actuator health endpoints (java.management for JMX)
+ * <p>Features tested: - REST API (java.net.http patterns) - JPA with H2 (java.sql) - Transactions
+ * (@Transactional) - Validation (Bean Validation) - Logging (SLF4J → java.logging bridge) -
+ * Actuator health endpoints (java.management for JMX)
  *
- * <p>Expected JDK modules (ground truth prediction):
- * - java.base (always required)
- * - java.sql (JDBC for H2 database)
- * - java.naming (JNDI for datasource lookup)
- * - java.logging (JUL bridge for SLF4J)
- * - java.management (JMX for actuator metrics)
- * - java.xml (XML configuration processing)
- * - java.instrument (Spring AOP proxies)
- * - java.desktop (AWT classes pulled by some dependencies)
- * - java.compiler (annotation processing)
- * - java.transaction.xa (JTA transaction support)
- * - jdk.unsupported (sun.misc.Unsafe for performance optimizations)
+ * <p>Expected JDK modules (ground truth prediction): - java.base (always required) - java.sql (JDBC
+ * for H2 database) - java.naming (JNDI for datasource lookup) - java.logging (JUL bridge for SLF4J)
+ * - java.management (JMX for actuator metrics) - java.xml (XML configuration processing) -
+ * java.instrument (Spring AOP proxies) - java.desktop (AWT classes pulled by some dependencies) -
+ * java.compiler (annotation processing) - java.transaction.xa (JTA transaction support) -
+ * jdk.unsupported (sun.misc.Unsafe for performance optimizations)
  */
 @SpringBootApplication
 public class SpringBootEnterpriseApp {
@@ -219,7 +209,8 @@ class ProductController {
   }
 
   @PutMapping("/{id}")
-  public ResponseEntity<Product> update(@PathVariable Long id, @Valid @RequestBody Product product) {
+  public ResponseEntity<Product> update(
+      @PathVariable Long id, @Valid @RequestBody Product product) {
     log.info("PUT /api/products/{}", id);
     return ResponseEntity.ok(service.update(id, product));
   }

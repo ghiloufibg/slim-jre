@@ -8,34 +8,33 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-/**
- * MicroProfile REST resource demonstrating JAX-RS and Config.
- */
+/** MicroProfile REST resource demonstrating JAX-RS and Config. */
 @Path("/hello")
 @RequestScoped
 public class HelloResource {
 
-    @Inject
-    @ConfigProperty(name = "app.greeting", defaultValue = "Hello from MicroProfile!")
-    private String greeting;
+  @Inject
+  @ConfigProperty(name = "app.greeting", defaultValue = "Hello from MicroProfile!")
+  private String greeting;
 
-    @GET
-    @Produces(MediaType.TEXT_PLAIN)
-    public String hello() {
-        return greeting;
-    }
+  @GET
+  @Produces(MediaType.TEXT_PLAIN)
+  public String hello() {
+    return greeting;
+  }
 
-    @GET
-    @Path("/info")
-    @Produces(MediaType.APPLICATION_JSON)
-    public String info() {
-        return """
+  @GET
+  @Path("/info")
+  @Produces(MediaType.APPLICATION_JSON)
+  public String info() {
+    return """
             {
                 "application": "MicroProfile Hello World",
                 "runtime": "Helidon 4.x",
                 "purpose": "slim-jre test app",
                 "javaVersion": "%s"
             }
-            """.formatted(System.getProperty("java.version"));
-    }
+            """
+        .formatted(System.getProperty("java.version"));
+  }
 }

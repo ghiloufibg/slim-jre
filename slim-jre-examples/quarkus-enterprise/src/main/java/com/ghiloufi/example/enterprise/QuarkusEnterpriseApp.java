@@ -26,27 +26,15 @@ import org.jboss.logging.Logger;
 /**
  * Enterprise Quarkus Application for slim-jre accuracy testing.
  *
- * <p>Features tested:
- * - REST API (Jakarta REST)
- * - Hibernate ORM with Panache (java.sql)
- * - H2 in-memory database
- * - Transactions (@Transactional)
- * - Validation (Hibernate Validator)
- * - Logging (JBoss Logging → java.logging)
- * - Health endpoints (SmallRye Health)
- * - Metrics (Micrometer)
+ * <p>Features tested: - REST API (Jakarta REST) - Hibernate ORM with Panache (java.sql) - H2
+ * in-memory database - Transactions (@Transactional) - Validation (Hibernate Validator) - Logging
+ * (JBoss Logging → java.logging) - Health endpoints (SmallRye Health) - Metrics (Micrometer)
  *
- * <p>Expected JDK modules (ground truth prediction):
- * - java.base (always required)
- * - java.sql (JDBC for H2 database)
- * - java.naming (JNDI for datasource lookup)
- * - java.logging (JUL for logging)
- * - java.management (JMX for metrics)
- * - java.xml (XML configuration)
- * - java.transaction.xa (JTA for @Transactional)
- * - java.compiler (annotation processing)
- * - java.desktop (may be pulled by dependencies)
- * - jdk.unsupported (sun.misc.Unsafe usage)
+ * <p>Expected JDK modules (ground truth prediction): - java.base (always required) - java.sql (JDBC
+ * for H2 database) - java.naming (JNDI for datasource lookup) - java.logging (JUL for logging) -
+ * java.management (JMX for metrics) - java.xml (XML configuration) - java.transaction.xa (JTA
+ * for @Transactional) - java.compiler (annotation processing) - java.desktop (may be pulled by
+ * dependencies) - jdk.unsupported (sun.misc.Unsafe usage)
  */
 @Path("/api/orders")
 @Produces(MediaType.APPLICATION_JSON)
