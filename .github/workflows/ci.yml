@@ -22,7 +22,7 @@ jobs:
           cache: 'maven'
 
       - name: Check formatting with Google Java Format
-        run: mvn fmt:check --batch-mode --no-transfer-progress
+        run: mvn com.spotify.fmt:fmt-maven-plugin:check --batch-mode --no-transfer-progress
 
   build:
     name: Build & Test (Java ${{ matrix.java }})
