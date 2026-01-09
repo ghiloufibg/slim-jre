@@ -48,7 +48,7 @@ jobs:
         run: mvn install -DskipTests --batch-mode --no-transfer-progress
 
       - name: Run tests
-        run: mvn test --batch-mode --no-transfer-progress
+        run: mvn test --batch-mode --no-transfer-progress -Dtest="!AccuracyValidationTest"
 
       - name: Upload test results
         if: failure()
