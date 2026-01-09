@@ -1,1 +1,1 @@
-java.base,java.sql,java.naming,java.logging,java.management,java.xml,java.transaction.xa,java.compiler,jdk.unsupported
+java.base,java.compiler,java.datatransfer,java.desktop,java.logging,java.management,java.naming,java.prefs,java.rmi,java.security.sasl,java.transaction.xa,java.xml,jdk.compiler,jdk.crypto.ec,jdk.internal.opt,jdk.localedata,jdk.unsupported,jdk.zipfs

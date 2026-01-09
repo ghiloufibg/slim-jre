@@ -332,23 +332,28 @@ public class ReflectionBytecodeScanner {
   }
 
   /**
-   * ASM MethodVisitor that tracks LDC instructions and Class.forName() invocations to capture the
-   * class name being loaded via reflection.
+   * ASM MethodVisitor that detects JDK class name string literals that are likely used for
+   * reflection.
    *
-   * <p>This visitor uses a simple stack simulation to track string literals. When we see an LDC
-   * with a string, we record it. When we see Class.forName(), we check if we have a recorded string
-   * that matches the JDK pattern.
+   * <p>This visitor uses a simple but effective heuristic: any JDK class name that appears as a
+   * string literal in the bytecode is likely being used for reflection. This catches patterns like:
    *
-   * <p>Note: This is a simplified approach that catches the most common patterns. For the
-   * 3-argument forName(String, boolean, ClassLoader), the string is pushed first, so we need to not
-   * clear it on subsequent instructions until the method call.
+   * <ul>
+   *   <li>Direct calls: {@code Class.forName("java.sql.Driver")}
+   *   <li>Helper methods: {@code loadClass("java.sql.Driver")} where loadClass calls Class.forName
+   *   <li>Stored references: {@code String className = "java.sql.Driver"; Class.forName(className)}
+   * </ul>
+   *
+   * <p>The rationale is that JDK class names appearing as string literals (e.g., "java.sql.Driver",
+   * "javax.naming.InitialContext") are almost always used for dynamic class loading. This approach
+   * is more robust than trying to track data flow across methods.
+   *
+   * <p>Note: Variable-based class names constructed at runtime (e.g., "java.sql." + "Driver")
+   * cannot be detected by static analysis and are intentionally not supported.
    */
   private static class ReflectionMethodVisitor extends MethodVisitor {
 
     private final Set<String> reflectedClasses;
-    // Keep track of all string literals seen in the current "window" of instructions
-    // This handles cases where other instructions appear between LDC and forName
-    private final Set<String> recentStringLiterals = new HashSet<>();
 
     ReflectionMethodVisitor(Set<String> reflectedClasses) {
       super(Opcodes.ASM9);
@@ -358,72 +363,42 @@ public class ReflectionBytecodeScanner {
     @Override
     public void visitLdcInsn(Object value) {
       if (value instanceof String str) {
-        // Only track JDK class names to reduce noise
-        if (isJdkClass(str)) {
-          recentStringLiterals.add(str);
+        // Collect ALL JDK class name strings - they're almost always used for reflection
+        // This catches both direct Class.forName calls and helper method patterns
+        if (isJdkClass(str) && isValidClassName(str)) {
+          reflectedClasses.add(str);
+          log.trace("Detected potential reflection target: {}", str);
         }
       }
     }
 
-    @Override
-    public void visitMethodInsn(
-        int opcode, String owner, String name, String descriptor, boolean isInterface) {
-      // Check for Class.forName(String) or Class.forName(String, boolean, ClassLoader)
-      if (CLASS_FOR_NAME_OWNER.equals(owner)
-          && CLASS_FOR_NAME_NAME.equals(name)
-          && (CLASS_FOR_NAME_DESC.equals(descriptor)
-              || CLASS_FOR_NAME_INIT_DESC.equals(descriptor))) {
-
-        // Add all recent JDK string literals as potential reflection targets
-        reflectedClasses.addAll(recentStringLiterals);
-        recentStringLiterals.clear();
+    /**
+     * Validates that the string looks like a valid Java class name. This filters out JDK-prefixed
+     * strings that aren't actually class names (e.g., "java.version", "javax.net.ssl.trustStore").
+     */
+    private boolean isValidClassName(String str) {
+      // Must contain at least one dot (package separator)
+      if (!str.contains(".")) {
+        return false;
       }
-      // Check for ClassLoader.loadClass(String) or ClassLoader.loadClass(String, boolean)
-      else if (CLASS_LOADER_OWNER.equals(owner)
-          && CLASS_LOADER_LOAD_CLASS_NAME.equals(name)
-          && (CLASS_LOADER_LOAD_CLASS_DESC.equals(descriptor)
-              || CLASS_LOADER_LOAD_CLASS_RESOLVE_DESC.equals(descriptor))) {
-
-        reflectedClasses.addAll(recentStringLiterals);
-        recentStringLiterals.clear();
+      // Must not contain spaces or special characters (except $ for inner classes)
+      if (str.contains(" ") || str.contains("=") || str.contains("/") || str.contains("\\")) {
+        return false;
       }
-      // Check for MethodHandles.Lookup.findClass(String)
-      else if (METHOD_HANDLES_LOOKUP_OWNER.equals(owner)
-          && FIND_CLASS_NAME.equals(name)
-          && FIND_CLASS_DESC.equals(descriptor)) {
-
-        reflectedClasses.addAll(recentStringLiterals);
-        recentStringLiterals.clear();
+      // Each segment must be a valid Java identifier
+      String[] parts = str.split("\\.");
+      for (String part : parts) {
+        if (part.isEmpty()) {
+          return false;
+        }
+        // Allow $ for inner classes, but first char must be letter or $
+        char firstChar = part.charAt(0);
+        if (!Character.isJavaIdentifierStart(firstChar)) {
+          return false;
+        }
       }
-      // Other method calls - keep literals for potential subsequent reflection calls
+      return true;
     }
-
-    @Override
-    public void visitLabel(org.objectweb.asm.Label label) {
-      // Labels indicate potential control flow changes - clear our tracking
-      recentStringLiterals.clear();
-    }
-
-    @Override
-    public void visitJumpInsn(int opcode, org.objectweb.asm.Label label) {
-      // Jumps indicate control flow - clear tracking
-      recentStringLiterals.clear();
-    }
-
-    @Override
-    public void visitTableSwitchInsn(
-        int min, int max, org.objectweb.asm.Label dflt, org.objectweb.asm.Label... labels) {
-      recentStringLiterals.clear();
-    }
-
-    @Override
-    public void visitLookupSwitchInsn(
-        org.objectweb.asm.Label dflt, int[] keys, org.objectweb.asm.Label[] labels) {
-      recentStringLiterals.clear();
-    }
-
-    // Don't clear on other instructions - the string might still be on the stack
-    // waiting to be consumed by Class.forName
   }
 
   /**

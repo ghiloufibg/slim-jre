@@ -1,1 +1,1 @@
-java.base,java.net.http
+java.base,java.net.http,jdk.crypto.ec
