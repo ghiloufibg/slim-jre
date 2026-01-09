@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.ghiloufi"
-version = "1.0.0-SNAPSHOT"
+version = "1.0.0-alpha.1"
 
 repositories {
     mavenCentral()
@@ -14,7 +14,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.ghiloufi:slim-jre-core:1.0.0-SNAPSHOT")
+    implementation("com.ghiloufi:slim-jre-core:1.0.0-alpha.1")
     implementation("org.slf4j:slf4j-api:2.0.9")
 
     testImplementation(gradleTestKit())

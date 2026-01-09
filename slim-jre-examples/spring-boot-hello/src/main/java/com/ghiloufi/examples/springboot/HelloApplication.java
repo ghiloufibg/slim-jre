@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Minimal Spring Boot application for slim-jre testing.
  *
- * <p>Run with: java -jar target/spring-boot-hello-1.0.0-SNAPSHOT.jar
+ * <p>Run with: java -jar target/spring-boot-hello-1.0.0-alpha.1.jar
  *
  * <p>Test with: curl http://localhost:8080/hello
  */

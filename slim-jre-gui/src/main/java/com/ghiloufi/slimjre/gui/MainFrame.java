@@ -374,7 +374,7 @@ public class MainFrame extends JFrame {
         """
             Slim JRE GUI
 
-            Version: 1.0.0-SNAPSHOT
+            Version: 1.0.0-alpha.1
 
             A graphical interface for creating minimal custom JREs
             for your Java applications using jdeps and jlink.

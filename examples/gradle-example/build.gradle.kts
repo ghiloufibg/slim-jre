@@ -1,6 +1,6 @@
 plugins {
     java
-    id("com.ghiloufi.slim-jre") version "1.0.0-SNAPSHOT"
+    id("com.ghiloufi.slim-jre") version "1.0.0-alpha.1"
 }
 
 group = "com.example"

@@ -26,19 +26,19 @@ class ExampleAppsIntegrationTest {
   }
 
   private static boolean zipfsAppExists() {
-    return Path.of("../slim-jre-examples/zipfs-app/target/zipfs-app-1.0.0-SNAPSHOT.jar")
+    return Path.of("../slim-jre-examples/zipfs-app/target/zipfs-app-1.0.0-alpha.1.jar")
         .toFile()
         .exists();
   }
 
   private static boolean jmxAppExists() {
-    return Path.of("../slim-jre-examples/jmx-app/target/jmx-app-1.0.0-SNAPSHOT.jar")
+    return Path.of("../slim-jre-examples/jmx-app/target/jmx-app-1.0.0-alpha.1.jar")
         .toFile()
         .exists();
   }
 
   private static boolean localeAppExists() {
-    return Path.of("../slim-jre-examples/locale-app/target/locale-app-1.0.0-SNAPSHOT.jar")
+    return Path.of("../slim-jre-examples/locale-app/target/locale-app-1.0.0-alpha.1.jar")
         .toFile()
         .exists();
   }
@@ -47,7 +47,7 @@ class ExampleAppsIntegrationTest {
   @EnabledIf("zipfsAppExists")
   void shouldDetectZipFsModuleInZipFsApp() {
     // Given: zipfs-app JAR that uses FileSystems.newFileSystem() and jar: URIs
-    Path zipfsJar = EXAMPLES_DIR.resolve("zipfs-app/target/zipfs-app-1.0.0-SNAPSHOT.jar");
+    Path zipfsJar = EXAMPLES_DIR.resolve("zipfs-app/target/zipfs-app-1.0.0-alpha.1.jar");
 
     // When: analyzing the JAR
     AnalysisResult result = slimJre.analyzeOnly(List.of(zipfsJar));
@@ -68,7 +68,7 @@ class ExampleAppsIntegrationTest {
   @EnabledIf("jmxAppExists")
   void shouldDetectJmxModuleInJmxApp() {
     // Given: jmx-app JAR that uses JMXConnectorFactory, JMXServiceURL
-    Path jmxJar = EXAMPLES_DIR.resolve("jmx-app/target/jmx-app-1.0.0-SNAPSHOT.jar");
+    Path jmxJar = EXAMPLES_DIR.resolve("jmx-app/target/jmx-app-1.0.0-alpha.1.jar");
 
     // When: analyzing the JAR
     AnalysisResult result = slimJre.analyzeOnly(List.of(jmxJar));
@@ -91,7 +91,7 @@ class ExampleAppsIntegrationTest {
   @EnabledIf("localeAppExists")
   void shouldDetectLocaleModuleInLocaleApp() {
     // Given: locale-app JAR that uses Locale.FRENCH, DateTimeFormatter.ofLocalizedDate(), etc.
-    Path localeJar = EXAMPLES_DIR.resolve("locale-app/target/locale-app-1.0.0-SNAPSHOT.jar");
+    Path localeJar = EXAMPLES_DIR.resolve("locale-app/target/locale-app-1.0.0-alpha.1.jar");
 
     // When: analyzing the JAR
     AnalysisResult result = slimJre.analyzeOnly(List.of(localeJar));
@@ -114,7 +114,7 @@ class ExampleAppsIntegrationTest {
   @EnabledIf("zipfsAppExists")
   void shouldIncludeZipFsInCombinedAnalysis() {
     // Verify that when combined with other modules, zipfs is properly included
-    Path zipfsJar = EXAMPLES_DIR.resolve("zipfs-app/target/zipfs-app-1.0.0-SNAPSHOT.jar");
+    Path zipfsJar = EXAMPLES_DIR.resolve("zipfs-app/target/zipfs-app-1.0.0-alpha.1.jar");
     AnalysisResult result = slimJre.analyzeOnly(List.of(zipfsJar));
 
     // Should have both jdeps-detected modules AND zipfs
@@ -128,7 +128,7 @@ class ExampleAppsIntegrationTest {
   @EnabledIf("jmxAppExists")
   void shouldIncludeJmxInCombinedAnalysis() {
     // Verify that when combined with other modules, jmx is properly included
-    Path jmxJar = EXAMPLES_DIR.resolve("jmx-app/target/jmx-app-1.0.0-SNAPSHOT.jar");
+    Path jmxJar = EXAMPLES_DIR.resolve("jmx-app/target/jmx-app-1.0.0-alpha.1.jar");
     AnalysisResult result = slimJre.analyzeOnly(List.of(jmxJar));
 
     // Should have both jdeps-detected modules AND jmx

@@ -26,7 +26,7 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
  * <plugin>
  *     <groupId>com.ghiloufi</groupId>
  *     <artifactId>slim-jre-maven-plugin</artifactId>
- *     <version>1.0.0-SNAPSHOT</version>
+ *     <version>1.0.0-alpha.1</version>
  *     <executions>
  *         <execution>
  *             <phase>package</phase>

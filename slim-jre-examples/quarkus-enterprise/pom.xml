@@ -6,7 +6,7 @@
 
     <groupId>com.ghiloufi.examples</groupId>
     <artifactId>quarkus-enterprise</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-alpha.1</version>
     <packaging>jar</packaging>
 
     <name>Quarkus Enterprise Example</name>
@@ -106,7 +106,7 @@
             <plugin>
                 <groupId>com.ghiloufi</groupId>
                 <artifactId>slim-jre-maven-plugin</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>1.0.0-alpha.1</version>
                 <executions>
                     <execution>
                         <goals>

@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.ghiloufi</groupId>
         <artifactId>slim-jre-examples</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-alpha.1</version>
     </parent>
 
     <artifactId>mixed-patterns-app</artifactId>
