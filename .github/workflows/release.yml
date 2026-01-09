@@ -51,7 +51,7 @@ jobs:
           mvn versions:commit
 
       - name: Build and verify
-        run: mvn verify --batch-mode --no-transfer-progress -Dtest="!AccuracyValidationTest"
+        run: mvn verify --batch-mode --no-transfer-progress -Dtest="!AccuracyValidationTest" -Dsurefire.failIfNoSpecifiedTests=false
 
       - name: Deploy to Maven Central
         env:
