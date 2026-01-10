@@ -62,7 +62,8 @@ jobs:
           mvn deploy -Prelease \
             --batch-mode \
             --no-transfer-progress \
-            -DskipTests
+            -DskipTests \
+            --projects slim-jre-core,slim-jre-maven-plugin
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
