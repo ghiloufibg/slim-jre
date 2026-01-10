@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.ghiloufi.examples</groupId>
+    <groupId>io.github.ghiloufibg.examples</groupId>
     <artifactId>spring-boot-enterprise</artifactId>
     <version>1.0.0-alpha.1</version>
     <packaging>jar</packaging>
@@ -61,7 +61,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>com.ghiloufi</groupId>
+                <groupId>io.github.ghiloufibg</groupId>
                 <artifactId>slim-jre-maven-plugin</artifactId>
                 <version>1.0.0-alpha.1</version>
                 <executions>

@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.ghiloufi</groupId>
+    <groupId>io.github.ghiloufibg</groupId>
     <artifactId>slim-jre-parent</artifactId>
     <version>1.0.0-alpha.1</version>
     <packaging>pom</packaging>
 
     <name>Slim JRE</name>
     <description>Automatically create minimal custom JREs for Java applications using jdeps and jlink</description>
-    <url>https://github.com/ghiloufi/slim-jre</url>
+    <url>https://github.com/ghiloufibg/slim-jre</url>
 
     <licenses>
         <license>
@@ -23,16 +23,16 @@
 
     <developers>
         <developer>
-            <id>ghiloufi</id>
-            <name>Ghiloufi</name>
-            <url>https://github.com/ghiloufi</url>
+            <id>ghiloufibg</id>
+            <name>Ghiloufibg</name>
+            <url>https://github.com/ghiloufibg</url>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/ghiloufi/slim-jre.git</connection>
-        <developerConnection>scm:git:ssh://github.com:ghiloufi/slim-jre.git</developerConnection>
-        <url>https://github.com/ghiloufi/slim-jre</url>
+        <connection>scm:git:git://github.com/ghiloufibg/slim-jre.git</connection>
+        <developerConnection>scm:git:ssh://github.com:ghiloufibg/slim-jre.git</developerConnection>
+        <url>https://github.com/ghiloufibg/slim-jre</url>
     </scm>
 
     <distributionManagement>
@@ -80,7 +80,7 @@
         <dependencies>
             <!-- Slim JRE modules -->
             <dependency>
-                <groupId>com.ghiloufi</groupId>
+                <groupId>io.github.ghiloufibg</groupId>
                 <artifactId>slim-jre-core</artifactId>
                 <version>${project.version}</version>
             </dependency>

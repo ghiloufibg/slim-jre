@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ghiloufi</groupId>
+        <groupId>io.github.ghiloufibg</groupId>
         <artifactId>slim-jre-examples</artifactId>
         <version>1.0.0-alpha.1</version>
     </parent>
@@ -34,11 +34,11 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.ghiloufi.example.instrument.InstrumentApp</mainClass>
+                            <mainClass>io.github.ghiloufibg.example.instrument.InstrumentApp</mainClass>
                         </manifest>
                         <manifestEntries>
-                            <Premain-Class>com.ghiloufi.example.instrument.InstrumentApp</Premain-Class>
-                            <Agent-Class>com.ghiloufi.example.instrument.InstrumentApp</Agent-Class>
+                            <Premain-Class>io.github.ghiloufibg.example.instrument.InstrumentApp</Premain-Class>
+                            <Agent-Class>io.github.ghiloufibg.example.instrument.InstrumentApp</Agent-Class>
                             <Can-Redefine-Classes>true</Can-Redefine-Classes>
                             <Can-Retransform-Classes>true</Can-Retransform-Classes>
                         </manifestEntries>
@@ -46,7 +46,7 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.ghiloufi</groupId>
+                <groupId>io.github.ghiloufibg</groupId>
                 <artifactId>slim-jre-maven-plugin</artifactId>
                 <version>${project.version}</version>
                 <executions>

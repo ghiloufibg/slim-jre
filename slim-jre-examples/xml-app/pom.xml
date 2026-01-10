@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ghiloufi</groupId>
+        <groupId>io.github.ghiloufibg</groupId>
         <artifactId>slim-jre-examples</artifactId>
         <version>1.0.0-alpha.1</version>
     </parent>
@@ -34,13 +34,13 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.ghiloufi.example.xml.XmlApp</mainClass>
+                            <mainClass>io.github.ghiloufibg.example.xml.XmlApp</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.ghiloufi</groupId>
+                <groupId>io.github.ghiloufibg</groupId>
                 <artifactId>slim-jre-maven-plugin</artifactId>
                 <version>${project.version}</version>
                 <executions>

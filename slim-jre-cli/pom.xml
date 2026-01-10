@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ghiloufi</groupId>
+        <groupId>io.github.ghiloufibg</groupId>
         <artifactId>slim-jre-parent</artifactId>
         <version>1.0.0-alpha.1</version>
     </parent>
@@ -19,7 +19,7 @@
     <dependencies>
         <!-- Core library -->
         <dependency>
-            <groupId>com.ghiloufi</groupId>
+            <groupId>io.github.ghiloufibg</groupId>
             <artifactId>slim-jre-core</artifactId>
         </dependency>
 
@@ -67,7 +67,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.ghiloufi.slimjre.cli.SlimJreCommand</mainClass>
+                            <mainClass>io.github.ghiloufibg.slimjre.cli.SlimJreCommand</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -84,7 +84,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.ghiloufi.slimjre.cli.SlimJreCommand</mainClass>
+                                    <mainClass>io.github.ghiloufibg.slimjre.cli.SlimJreCommand</mainClass>
                                 </transformer>
                             </transformers>
                             <createDependencyReducedPom>false</createDependencyReducedPom>

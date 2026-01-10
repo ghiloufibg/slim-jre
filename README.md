@@ -41,7 +41,7 @@ Add to your `pom.xml`:
 
 ```xml
 <plugin>
-    <groupId>com.ghiloufi</groupId>
+    <groupId>io.github.ghiloufibg</groupId>
     <artifactId>slim-jre-maven-plugin</artifactId>
     <version>1.0.0-alpha.1</version>
     <executions>
@@ -79,7 +79,7 @@ slim-jre myapp.jar --analyze-only
 
 ```kotlin
 plugins {
-    id("com.ghiloufi.slim-jre") version "1.0.0-alpha.1"
+    id("io.github.ghiloufibg.slim-jre") version "1.0.0-alpha.1"
 }
 
 slimJre {
@@ -202,7 +202,7 @@ Options:
 
 ```bash
 # Clone the repository
-git clone https://github.com/ghiloufi/slim-jre.git
+git clone https://github.com/ghiloufibg/slim-jre.git
 cd slim-jre
 
 # Build all modules

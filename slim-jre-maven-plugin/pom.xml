@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.ghiloufi</groupId>
+        <groupId>io.github.ghiloufibg</groupId>
         <artifactId>slim-jre-parent</artifactId>
         <version>1.0.0-alpha.1</version>
     </parent>
@@ -27,7 +27,7 @@
     <dependencies>
         <!-- Core library -->
         <dependency>
-            <groupId>com.ghiloufi</groupId>
+            <groupId>io.github.ghiloufibg</groupId>
             <artifactId>slim-jre-core</artifactId>
         </dependency>
 

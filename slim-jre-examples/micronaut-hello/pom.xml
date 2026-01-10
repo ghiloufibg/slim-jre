@@ -10,7 +10,7 @@
         <version>4.7.5</version>
     </parent>
 
-    <groupId>com.ghiloufi</groupId>
+    <groupId>io.github.ghiloufibg</groupId>
     <artifactId>micronaut-hello</artifactId>
     <version>1.0.0-alpha.1</version>
     <packaging>jar</packaging>
@@ -23,7 +23,7 @@
         <release.version>21</release.version>
         <micronaut.version>4.7.5</micronaut.version>
         <micronaut.runtime>netty</micronaut.runtime>
-        <exec.mainClass>com.ghiloufi.example.micronaut.Application</exec.mainClass>
+        <exec.mainClass>io.github.ghiloufibg.example.micronaut.Application</exec.mainClass>
     </properties>
 
     <repositories>
@@ -80,7 +80,7 @@
                         </path>
                     </annotationProcessorPaths>
                     <compilerArgs>
-                        <arg>-Amicronaut.processing.group=com.ghiloufi.example.micronaut</arg>
+                        <arg>-Amicronaut.processing.group=io.github.ghiloufibg.example.micronaut</arg>
                         <arg>-Amicronaut.processing.module=micronaut-hello</arg>
                     </compilerArgs>
                 </configuration>
@@ -108,7 +108,7 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>com.ghiloufi</groupId>
+                <groupId>io.github.ghiloufibg</groupId>
                 <artifactId>slim-jre-maven-plugin</artifactId>
                 <version>1.0.0-alpha.1</version>
                 <executions>

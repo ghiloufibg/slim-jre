@@ -5,7 +5,7 @@ plugins {
     id("com.gradle.plugin-publish") version "1.2.1"
 }
 
-group = "com.ghiloufi"
+group = "io.github.ghiloufibg"
 version = "1.0.0-alpha.1"
 
 repositories {
@@ -14,7 +14,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.ghiloufi:slim-jre-core:1.0.0-alpha.1")
+    implementation("io.github.ghiloufibg:slim-jre-core:1.0.0-alpha.1")
     implementation("org.slf4j:slf4j-api:2.0.9")
 
     testImplementation(gradleTestKit())
@@ -39,11 +39,11 @@ gradlePlugin {
 
     plugins {
         create("slimJre") {
-            id = "com.ghiloufi.slim-jre"
+            id = "io.github.ghiloufibg.slim-jre"
             displayName = "Slim JRE Plugin"
             description = "Creates minimal custom JREs for Java applications using jdeps and jlink"
             tags.set(listOf("java", "jlink", "jre", "optimization", "docker"))
-            implementationClass = "com.ghiloufi.slimjre.gradle.SlimJrePlugin"
+            implementationClass = "io.github.ghiloufibg.slimjre.gradle.SlimJrePlugin"
         }
     }
 }
